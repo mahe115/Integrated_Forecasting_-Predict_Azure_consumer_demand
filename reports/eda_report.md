@@ -42,7 +42,7 @@
 | cloud_market_demand | 0            | N/A                           |
 | holiday          | 0              | N/A                           |
 
-*Note: Original data for `usage_storage` had no missing values based on provided files.*
+
 
 ---
 
