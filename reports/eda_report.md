@@ -54,7 +54,7 @@ The CPU usage exhibits a consistent trend with some daily fluctuations visible a
 ### Region-wise Average CPU Usage  
 The East US region shows the highest average CPU usage, followed by North Europe, West US, and Southeast Asia, indicating variation in infrastructure utilization.
 
-![Average CPU Usage by Region](visualized_figures/avg_cpu_usage_by_region_zoomed.png)
+![Average CPU Usage by Region](visualized_figures/avg_cpu_usage_by_region.png)
 
 ### Correlation Heatmap  
 Clear positive correlations are observed among `usage_cpu`, `usage_storage`, and `users_active`. Economic indicators and cloud market demand show moderate correlation with compute resource usage, guiding further modeling.
