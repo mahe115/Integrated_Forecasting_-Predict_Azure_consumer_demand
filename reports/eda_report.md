@@ -60,15 +60,12 @@ The East US region shows the highest average CPU usage, followed by North Europe
 
 ## 7. 📈 Combined Usage Trends
 
-The following combined visualizations show the usage patterns and economic context side-by-side for enhanced interpretation.
 
 ### Usage Trends Overview  
-This image presents users active as the top row and CPU & Storage usage side-by-side in the second row.
 
 ![Combined Usage Trends](visualized_figures/combined_trends_layout.png)
 
 ### Economic Index and Cloud Market Demand  
-This vertical stack of economic index and cloud market demand trends helps correlate external factors with cloud usage.
 
 ![Economic & Market Demand Trends](visualized_figures/combined_economic_market.png)
 
