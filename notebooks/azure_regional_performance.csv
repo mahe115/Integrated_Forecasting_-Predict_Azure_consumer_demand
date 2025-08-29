@@ -1,0 +1,13 @@
+region,resource_type,usage_cpu_mean,usage_cpu_std,usage_storage_mean,usage_storage_std,users_active_mean,users_active_std
+East US,Container,75.92,14.19,1255.1,463.29,352.14,88.97
+East US,Storage,76.42,13.18,1252.06,453.15,355.63,82.08
+East US,VM,74.58,14.21,1223.2,456.33,354.36,89.79
+North Europe,Container,73.79,14.36,1200.44,424.57,340.12,91.49
+North Europe,Storage,74.22,15.13,1234.39,454.73,347.14,92.14
+North Europe,VM,76.63,15.25,1250.52,406.27,352.52,89.77
+Southeast Asia,Container,72.13,14.49,1204.03,457.23,366.32,83.94
+Southeast Asia,Storage,74.68,14.75,1176.66,446.18,360.44,80.81
+Southeast Asia,VM,74.82,14.99,1279.8,415.1,341.68,81.41
+West US,Container,73.22,14.65,1276.39,438.62,361.19,86.39
+West US,Storage,75.7,13.84,1249.56,387.8,347.98,85.19
+West US,VM,73.7,15.59,1307.59,385.16,352.8,83.81

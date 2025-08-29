@@ -1,0 +1,6 @@
+,usage_cpu,usage_storage,users_active,economic_index,cloud_market_demand
+usage_cpu,1.0,-0.037,0.025,-0.059,0.009
+usage_storage,-0.037,1.0,-0.059,-0.023,-0.014
+users_active,0.025,-0.059,1.0,0.004,0.005
+economic_index,-0.059,-0.023,0.004,1.0,0.049
+cloud_market_demand,0.009,-0.014,0.005,0.049,1.0
