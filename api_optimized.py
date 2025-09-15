@@ -104,7 +104,7 @@ def get_sparklines():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ===== TAB 2: USAGE TRENDS =====
+# ===== : USAGE TRENDS =====
 
 @app.route('/api/time-series')
 def get_time_series():
@@ -546,14 +546,14 @@ def internal_error(e):
 if __name__ == '__main__':
     print("🚀 Azure Demand Forecasting API Server Starting...")
     print("📊 Available Endpoints:")
-    print("   • Tab 1 (Overview): /api/kpis, /api/sparklines")
-    print("   • Tab 2 (Trends): /api/time-series, /api/trends/*")
-    print("   • Tab 3 (Regional): /api/regional/*")
-    print("   • Tab 4 (Resources): /api/resources/*")
-    print("   • Tab 5 (Correlations): /api/correlations/*")
-    print("   • Tab 6 (Holidays): /api/holiday/*")
-    print("   • Tab 7 (Forecasting): /api/forecast/placeholder")
-    print("   • Tab 8 (Engagement): /api/engagement/*")
+    print("   • (Overview): /api/kpis, /api/sparklines")
+    print("   •  (Trends): /api/time-series, /api/trends/*")
+    print("   •  (Regional): /api/regional/*")
+    print("   •  (Resources): /api/resources/*")
+    print("   •  (Correlations): /api/correlations/*")
+    print("   •  (Holidays): /api/holiday/*")
+    print("   •  (Forecasting): /api/forecast/placeholder")
+    print("   •  (Engagement): /api/engagement/*")
     print("   • Utilities: /api/filters/options, /api/data/summary")
     
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -271,7 +271,7 @@ with tab1:
                 if not cpu_data.empty:
                     fig = px.line(cpu_data, x='date', y='usage_cpu',
                                 title="CPU Usage Trend")
-                    fig.update_layout(height=200, showlegend=False)
+                    fig.update_layout(height=400, showlegend=False)
                     fig.update_xaxes(showticklabels=False)
                     st.plotly_chart(fig, use_container_width=True)
             
@@ -281,7 +281,7 @@ with tab1:
                 if not storage_data.empty:
                     fig = px.line(storage_data, x='date', y='usage_storage',
                                 title="Storage Usage Trend", color_discrete_sequence=['#ff6b6b'])
-                    fig.update_layout(height=200, showlegend=False)
+                    fig.update_layout(height=400, showlegend=False)
                     fig.update_xaxes(showticklabels=False)
                     st.plotly_chart(fig, use_container_width=True)
             
@@ -291,7 +291,7 @@ with tab1:
                 if not users_data.empty:
                     fig = px.line(users_data, x='date', y='users_active',
                                 title="User Activity Trend", color_discrete_sequence=['#4ecdc4'])
-                    fig.update_layout(height=200, showlegend=False)
+                    fig.update_layout(height=400, showlegend=False)
                     fig.update_xaxes(showticklabels=False)
                     st.plotly_chart(fig, use_container_width=True)
 
@@ -874,7 +874,7 @@ with tab7:
         
         st.plotly_chart(fig, use_container_width=True)
         
-        st.warning("⚠️ This is a placeholder visualization with mock data. Actual forecasting will be available once ML models are implemented.")
+        st.warning("⚠️ This is a placeholder visualization with mock data. Actual forecasting will be available once ML models are implemented. -Mahendran")
 
 # ===== TAB 8: USER ENGAGEMENT =====
 with tab8:
