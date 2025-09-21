@@ -1,0 +1,21 @@
+feature,importance
+usage_cpu_roll7,0.1332378
+resource_type_VM,0.06296677
+users_active_lag1,0.060342066
+is_weekend,0.056088287
+cloud_market_demand,0.055017322
+region_Southeast Asia,0.053027943
+usage_cpu_lag1,0.05119724
+users_active,0.050274342
+usage_cpu_lag7,0.050239436
+resource_type_Storage,0.049687024
+month,0.048025336
+region_West US,0.047858533
+users_active_roll7,0.047635995
+economic_index,0.04610351
+region_North Europe,0.04226836
+users_active_lag7,0.04148713
+holiday,0.04060268
+weekofyear,0.03465043
+usage_storage,0.0292899
+quarter,0.0
