@@ -72,7 +72,9 @@ st.markdown("""
         padding: 1rem;
         border-radius: 5px;
         border: 1px solid #ffeaa7;
-        margin-bottom: 1rem;
+        margin-bottom: 1rem;Multi-dimensional Analysis - External Factors Impact
+
+
     }
     
     .plotly-chart {
@@ -266,7 +268,6 @@ with tab1:
             spark_col1, spark_col2, spark_col3 = st.columns(3)
             
             with spark_col1:
-                st.markdown("**CPU Usage Trend**")
                 cpu_data = pd.DataFrame(sparklines['cpu_trend'])
                 if not cpu_data.empty:
                     fig = px.line(cpu_data, x='date', y='usage_cpu',
@@ -276,7 +277,6 @@ with tab1:
                     st.plotly_chart(fig, use_container_width=True)
             
             with spark_col2:
-                st.markdown("**Storage Usage Trend**")
                 storage_data = pd.DataFrame(sparklines['storage_trend'])
                 if not storage_data.empty:
                     fig = px.line(storage_data, x='date', y='usage_storage',
@@ -286,7 +286,6 @@ with tab1:
                     st.plotly_chart(fig, use_container_width=True)
             
             with spark_col3:
-                st.markdown("**User Activity Trend**")
                 users_data = pd.DataFrame(sparklines['users_trend'])
                 if not users_data.empty:
                     fig = px.line(users_data, x='date', y='users_active',
@@ -294,6 +293,55 @@ with tab1:
                     fig.update_layout(height=400, showlegend=False)
                     fig.update_xaxes(showticklabels=False)
                     st.plotly_chart(fig, use_container_width=True)
+        st.divider()
+        # ===== Data Explorer =====
+        st.subheader("🗃️ Data Explorer")
+
+        # Fetch raw data
+        raw_data = fetch_api("data/raw")
+        if not raw_data:
+           st.info("No data available for exploration.")
+        else:
+           df_explore = pd.DataFrame(raw_data)
+           df_explore['date'] = pd.to_datetime(df_explore['date']).dt.date
+
+           # --- Inline filter controls ---
+           st.markdown("**Filters:**")
+           fcol1, fcol2, fcol3 = st.columns([1, 1, 2])
+
+           # Date range picker
+           default_start = df_explore['date'].min()
+           default_end   = df_explore['date'].max()
+           with fcol1:
+              start, end = st.date_input(
+                  "Date range", [default_start, default_end]
+              )
+
+           # Region dropdown
+           regions = ['All'] + sorted(df_explore['region'].unique().tolist())
+           with fcol2:
+              sel_region = st.selectbox("Region", regions)
+
+           # Resource type dropdown
+           resources = ['All'] + sorted(df_explore['resource_type'].unique().tolist())
+           with fcol3:
+               sel_resource = st.selectbox("Resource Type", resources)
+
+           # --- Apply filters ---
+           mask = df_explore['date'].between(start, end)
+           if sel_region != 'All':
+              mask &= df_explore['region'] == sel_region
+           if sel_resource != 'All':
+              mask &= df_explore['resource_type'] == sel_resource
+           df_filtered = df_explore.loc[mask].copy()
+
+           # Display count and table
+           st.markdown(f"Showing {len(df_filtered):,} records")
+           st.dataframe(
+               df_filtered.sort_values('date', ascending=False),
+               use_container_width=True,
+               height=400
+            )
 
 # ===== TAB 2: USAGE TRENDS =====
 with tab2:
@@ -670,24 +718,42 @@ with tab5:
                 fig.update_layout(height=400)
                 st.plotly_chart(fig, use_container_width=True)
         
-        # Multi-dimensional bubble chart
-        if bubble_data:
-            st.markdown("**Multi-dimensional Analysis - External Factors Impact**")
-            df_bubble = pd.DataFrame(bubble_data)
-            
-            fig = px.scatter(
-                df_bubble,
-                x='economic_index',
-                y='cloud_market_demand',
-                size='usage_cpu',
-                color='region',
-                hover_data=['resource_type', 'usage_storage', 'users_active'],
-                title="Economic Index vs Market Demand (Bubble size = CPU Usage)",
-                color_discrete_map={'East US': '#0078d4', 'West US': '#ff6b6b', 'North Europe': '#4ecdc4', 'Southeast Asia': '#95e1d3'}
-            )
-            
-            fig.update_layout(height=500)
-            st.plotly_chart(fig, use_container_width=True)
+    # Multi-dimensional bubble chart with meaningful metrics
+    if bubble_data:
+       st.markdown("**Resource Efficiency Analysis - CPU vs Storage per User**")
+       df_bubble = pd.DataFrame(bubble_data)
+    
+       st.write(f"📊 Analyzing {len(df_bubble)} region-resource combinations")
+    
+       fig = px.scatter(
+        df_bubble,
+        x='cpu_efficiency',  # CPU per user
+        y='storage_efficiency',  # Storage per user
+        size='total_utilization',  # Total resource usage
+        color='region',
+        symbol='resource_type',  # Different symbols for VM, Storage, Container
+        hover_data=['usage_cpu', 'usage_storage', 'users_active'],
+        title="Resource Efficiency: CPU/User vs Storage/User (Lower = More Efficient)",
+        labels={
+            'cpu_efficiency': 'CPU per User (Lower = Better)',
+            'storage_efficiency': 'Storage per User (Lower = Better)'
+        },
+        color_discrete_map={
+            'East US': '#0078d4', 
+            'West US': '#ff6b6b', 
+            'North Europe': '#4ecdc4', 
+            'Southeast Asia': '#95e1d3'
+        },
+        size_max=60,
+        opacity=0.8
+    )
+    
+       fig.update_layout(height=600, showlegend=True)
+       st.plotly_chart(fig, use_container_width=True)
+    
+       # Show raw data
+       with st.expander("📋 Efficiency Data"):
+           st.dataframe(df_bubble[['region', 'resource_type', 'cpu_efficiency', 'storage_efficiency', 'total_utilization']])
 
 # ===== TAB 6: HOLIDAY EFFECTS =====
 with tab6:
