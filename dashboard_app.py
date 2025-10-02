@@ -307,25 +307,25 @@ with tab1:
 
            # --- Inline filter controls ---
            st.markdown("**Filters:**")
-           fcol1, fcol2, fcol3 = st.columns([1, 1, 2])
-
-           # Date range picker
+           fcol1, fcol2, fcol3, fcol4 = st.columns([1, 1, 1, 1])
+           # Separate start and end date pickers
            default_start = df_explore['date'].min()
            default_end   = df_explore['date'].max()
            with fcol1:
-              start, end = st.date_input(
-                  "Date range", [default_start, default_end]
-              )
-
-           # Region dropdown
-           regions = ['All'] + sorted(df_explore['region'].unique().tolist())
+                start = st.date_input("Start Date", default_start)
+   
            with fcol2:
-              sel_region = st.selectbox("Region", regions)
+                end = st.date_input("End Date", default_end)
 
-           # Resource type dropdown
-           resources = ['All'] + sorted(df_explore['resource_type'].unique().tolist())
+            # Region dropdown
+           regions = ['All'] + sorted(df_explore['region'].unique().tolist())
            with fcol3:
-               sel_resource = st.selectbox("Resource Type", resources)
+                sel_region = st.selectbox("Region", regions)
+
+            # Resource type dropdown
+           resources = ['All'] + sorted(df_explore['resource_type'].unique().tolist())
+           with fcol4:
+                sel_resource = st.selectbox("Resource Type", resources)
 
            # --- Apply filters ---
            mask = df_explore['date'].between(start, end)
@@ -335,237 +335,1105 @@ with tab1:
               mask &= df_explore['resource_type'] == sel_resource
            df_filtered = df_explore.loc[mask].copy()
 
-           # Display count and table
-           st.markdown(f"Showing {len(df_filtered):,} records")
+
+
+           # --- COLUMN ORDERING & LABELING ---
+           # Define meaningful column order and labels
+           column_config = {
+                             'date': 'Date',
+        'region': 'Azure Region',
+        'resource_type': 'Resource Type',
+        'usage_cpu': 'CPU Usage (%)',
+        'usage_storage': 'Storage (GB)',
+        'users_active': 'Active Users',
+        'economic_index': 'Economic Index',
+        'cloud_market_demand': 'Market Demand',
+        'holiday': 'Holiday'
+    }
+    
+           # Reorder columns in meaningful sequence
+           ordered_columns = ['date', 'region', 'resource_type', 'usage_cpu', 'usage_storage', 
+                      'users_active', 'economic_index', 'cloud_market_demand', 'holiday']
+    
+           # Select and reorder columns
+           df_display = df_filtered[ordered_columns].copy()
+    
+           # Format specific columns for better readability
+           df_display['usage_cpu'] = df_display['usage_cpu'].round(1)
+           df_display['usage_storage'] = df_display['usage_storage'].astype(int)
+           df_display['economic_index'] = df_display['economic_index'].round(2)
+           df_display['cloud_market_demand'] = df_display['cloud_market_demand'].round(3)
+           df_display['holiday'] = df_display['holiday'].map({0: 'No', 1: 'Yes'})
+    
+           # Display count and table with custom column configuration
+           st.markdown(f"**Showing {len(df_display):,} records**")
+    
            st.dataframe(
-               df_filtered.sort_values('date', ascending=False),
-               use_container_width=True,
-               height=400
-            )
+                 df_display.sort_values('date', ascending=False),
+                 use_container_width=True,
+                 height=400,
+                 column_config={
+            'date': st.column_config.DateColumn('📅 Date'),
+            'region': st.column_config.TextColumn('🌍 Azure Region'),
+            'resource_type': st.column_config.TextColumn('⚙️ Resource Type'),
+            'usage_cpu': st.column_config.NumberColumn('🔥 CPU Usage (%)', format="%.1f%%"),
+            'usage_storage': st.column_config.NumberColumn('💾 Storage (GB)', format="%d GB"),
+            'users_active': st.column_config.NumberColumn('👥 Active Users', format="%d"),
+            'economic_index': st.column_config.NumberColumn('📈 Economic Index', format="%.2f"),
+            'cloud_market_demand': st.column_config.NumberColumn('📊 Market Demand', format="%.3f"),
+            'holiday': st.column_config.TextColumn('🎉 Holiday')
+        }
+    )
+    
+          # Additional insights section
+           with st.expander("📊 Quick Insights from Filtered Data"):
+              insights_col1, insights_col2, insights_col3 = st.columns(3)
+        
+           with insights_col1:
+                st.metric("Avg CPU Usage", f"{df_display['usage_cpu'].mean():.1f}%")
+                st.metric("Peak CPU Usage", f"{df_display['usage_cpu'].max():.1f}%")
+        
+           with insights_col2:
+                st.metric("Avg Storage", f"{df_display['usage_storage'].mean():.0f} GB")
+                st.metric("Total Users", f"{df_display['users_active'].sum():,}")
+        
+           with insights_col3:
+               holiday_pct = (df_display['holiday'] == 'Yes').mean() * 100
+               st.metric("Holiday Records", f"{holiday_pct:.1f}%")
+               st.metric("Unique Regions", f"{df_display['region'].nunique()}")
 
-# ===== TAB 2: USAGE TRENDS =====
+
+
+
+
+
+
+# SPACE-OPTIMIZED TAB 2 - COMPACT LAYOUT
+
+# ===== TAB 2: ENHANCED TRENDS ANALYSIS WITH COMPACT LAYOUT =====
 with tab2:
-    st.subheader("📈 Usage Trends Analysis")
-    
-    # Time series controls
-    col1, col2 = st.columns([3, 1])
-    
-    with col2:
-        st.markdown("**Chart Controls**")
-        show_cpu = st.checkbox("Show CPU Usage", value=True)
-        show_storage = st.checkbox("Show Storage Usage", value=True)
-        show_users = st.checkbox("Show Active Users", value=True)
-        
-        chart_type = st.selectbox(
-            "Chart Type",
-            ["Combined View", "Regional Breakdown", "Resource Type Breakdown"]
-        )
-    
-    with col1:
-        # Prepare API parameters
-        params = {}
-        if start_date: params['start_date'] = start_date.isoformat()
-        if end_date: params['end_date'] = end_date.isoformat()
-        
-        if chart_type == "Combined View":
-            time_series_data = fetch_api("time-series", params)
-        elif chart_type == "Regional Breakdown":
-            time_series_data = fetch_api("trends/regional", params)
-        else:
-            time_series_data = fetch_api("trends/resource-types", params)
-        
-        if time_series_data:
-            df_ts = pd.DataFrame(time_series_data)
-            df_ts['date'] = pd.to_datetime(df_ts['date'])
-            
-            # Create interactive time series chart
-            fig = go.Figure()
-            
-            if chart_type == "Combined View":
-                if show_cpu:
-                    fig.add_trace(go.Scatter(
-                        x=df_ts['date'],
-                        y=df_ts['usage_cpu'],
-                        mode='lines+markers',
-                        name='CPU Usage (%)',
-                        line=dict(color='#0078d4', width=3),
-                        hovertemplate='<b>CPU Usage</b><br>Date: %{x}<br>Value: %{y:.1f}%<extra></extra>'
-                    ))
-                
-                if show_storage:
-                    fig.add_trace(go.Scatter(
-                        x=df_ts['date'],
-                        y=df_ts['usage_storage'],
-                        mode='lines+markers',
-                        name='Storage Usage (GB)',
-                        yaxis='y2',
-                        line=dict(color='#ff6b6b', width=3),
-                        hovertemplate='<b>Storage Usage</b><br>Date: %{x}<br>Value: %{y:.0f} GB<extra></extra>'
-                    ))
-                
-                if show_users:
-                    fig.add_trace(go.Scatter(
-                        x=df_ts['date'],
-                        y=df_ts['users_active'],
-                        mode='lines+markers',
-                        name='Active Users',
-                        yaxis='y3',
-                        line=dict(color='#4ecdc4', width=3),
-                        hovertemplate='<b>Active Users</b><br>Date: %{x}<br>Value: %{y:.0f}<extra></extra>'
-                    ))
-                
-                # Update layout for multi-axis
-                fig.update_layout(
-                    title="Azure Usage Trends - Multi-Dimensional Analysis",
-                    xaxis_title="Date",
-                    yaxis=dict(title="CPU Usage (%)", side="left"),
-                    yaxis2=dict(title="Storage (GB)", side="right", overlaying="y"),
-                    yaxis3=dict(title="Active Users", side="right", overlaying="y", position=0.95),
-                    hovermode='x unified',
-                    height=500
-                )
-            
-            else:
-                # Regional or Resource breakdown
-                group_col = 'region' if chart_type == "Regional Breakdown" else 'resource_type'
-                
-                for group in df_ts[group_col].unique():
-                    group_data = df_ts[df_ts[group_col] == group]
-                    
-                    if show_cpu:
-                        fig.add_trace(go.Scatter(
-                            x=group_data['date'],
-                            y=group_data['usage_cpu'],
-                            mode='lines+markers',
-                            name=f'{group} - CPU',
-                            line=dict(width=2),
-                            hovertemplate=f'<b>{group} - CPU</b><br>Date: %{{x}}<br>Value: %{{y:.1f}}%<extra></extra>'
-                        ))
-                
-                fig.update_layout(
-                    title=f"Usage Trends by {group_col.replace('_', ' ').title()}",
-                    xaxis_title="Date",
-                    yaxis_title="CPU Usage (%)",
-                    hovermode='x unified',
-                    height=500
-                )
-            
-            # Add range selector
-            fig.update_layout(
-                xaxis=dict(
-                    rangeselector=dict(
-                        buttons=list([
-                            dict(count=7, label="7D", step="day", stepmode="backward"),
-                            dict(count=30, label="30D", step="day", stepmode="backward"),
-                            dict(step="all", label="All")
-                        ])
-                    ),
-                    rangeslider=dict(visible=True),
-                    type="date"
-                )
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        
-        else:
-            st.error("Unable to load time series data")
+    st.subheader("📈 Advanced Trends Analysis & Pattern Detection")
 
-# ===== TAB 3: REGIONAL COMPARISON =====
+    # Load filter options and check filtering capability
+    filter_options = fetch_api("filters/options")
+
+    if not filter_options:
+        st.error("❌ Unable to load filter options")
+        st.stop()
+
+    # === ENHANCED FILTER CONTROLS ===
+    st.markdown("**🎛️ Advanced Trend Controls:**")
+
+    # Row 1: Primary filters
+    filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
+
+    with filter_col1:
+        metric_choice = st.selectbox(
+            "📊 Primary Metric", 
+            ["usage_cpu", "usage_storage", "users_active"], 
+            format_func=lambda x: {
+                "usage_cpu": "🔥 CPU Usage (%)",
+                "usage_storage": "💾 Storage Usage (GB)", 
+                "users_active": "👥 Active Users"
+            }[x]
+        )
+
+    with filter_col2:
+        # Get regions from filter options API
+        available_regions = ['All Regions'] + filter_options.get('regions', [])
+        region_filter = st.selectbox("🌍 Region Focus", available_regions)
+
+    with filter_col3:
+        # Get resource types from filter options API
+        available_resources = ['All Resources'] + filter_options.get('resource_types', [])
+        resource_filter = st.selectbox("⚙️ Resource Type", available_resources)
+
+    with filter_col4:
+        trend_period = st.selectbox("⏰ Time Period", ["7D", "30D", "90D", "All"])
+
+    # Row 2: Analysis options
+    analysis_col1, analysis_col2, analysis_col3, analysis_col4 = st.columns(4)
+
+    with analysis_col1:
+        smoothing = st.checkbox("📈 Apply Smoothing", value=True)
+
+    with analysis_col2:
+        show_patterns = st.checkbox("🔍 Highlight Patterns", value=True)
+
+    with analysis_col3:
+        compare_mode = st.checkbox("⚖️ Comparison View", value=False)
+
+    with analysis_col4:
+        show_anomalies = st.checkbox("🚨 Detect Anomalies", value=False)
+
+    # === DATA LOADING (COMPACT) ===
+    # Try to use raw data for proper filtering
+    raw_data = fetch_api("data/raw")
+
+    if raw_data:
+        # CLIENT-SIDE FILTERING (Most reliable approach)
+        df_raw = pd.DataFrame(raw_data)
+        df_raw['date'] = pd.to_datetime(df_raw['date'])
+
+        # Apply region filter
+        if region_filter != 'All Regions':
+            df_filtered_raw = df_raw[df_raw['region'] == region_filter]
+        else:
+            df_filtered_raw = df_raw
+
+        # Apply resource type filter
+        if resource_filter != 'All Resources':
+            df_filtered_raw = df_filtered_raw[df_filtered_raw['resource_type'] == resource_filter]
+
+        # Apply time period filter
+        if trend_period != "All":
+            days = int(trend_period[:-1])
+            latest_date = df_filtered_raw['date'].max()
+            cutoff = latest_date - timedelta(days=days)
+            df_filtered_raw = df_filtered_raw[df_filtered_raw['date'] >= cutoff]
+
+        # Aggregate filtered data by date
+        df_agg = df_filtered_raw.groupby('date').agg({
+            'usage_cpu': 'mean',
+            'usage_storage': 'mean', 
+            'users_active': 'mean',
+            'economic_index': 'mean',
+            'cloud_market_demand': 'mean'
+        }).reset_index().sort_values('date')
+
+    else:
+        # FALLBACK: Try time-series API with query parameters
+        params = {}
+        if region_filter != 'All Regions':
+            params['region'] = region_filter
+        if resource_filter != 'All Resources':
+            params['resource_type'] = resource_filter
+
+        if params:
+            query_params = '&'.join([f"{k}={v}" for k, v in params.items()])
+            filtered_time_series = fetch_api(f"time-series?{query_params}")
+
+            if filtered_time_series:
+                df_agg = pd.DataFrame(filtered_time_series)
+                df_agg['date'] = pd.to_datetime(df_agg['date'])
+            else:
+                time_series_data = fetch_api("time-series")
+                df_agg = pd.DataFrame(time_series_data)
+                df_agg['date'] = pd.to_datetime(df_agg['date'])
+        else:
+            # No filters, use regular time-series
+            time_series_data = fetch_api("time-series")
+            df_agg = pd.DataFrame(time_series_data)
+            df_agg['date'] = pd.to_datetime(df_agg['date'])
+
+        # Apply time period filter
+        if trend_period != "All":
+            days = int(trend_period[:-1])
+            latest_date = df_agg['date'].max()
+            cutoff = latest_date - timedelta(days=days)
+            df_agg = df_agg[df_agg['date'] >= cutoff]
+
+    if df_agg.empty:
+        st.error("❌ No data available for selected filters")
+        st.error(f"Filters: Region={region_filter}, Resource={resource_filter}, Period={trend_period}")
+        st.stop()
+
+    # === COMPACT DATA STATUS (HIDDEN IN EXPANDER) ===
+    with st.expander("📊 Data Status & Debug Information", expanded=False):
+        # Data loading status
+        status_col1, status_col2, status_col3 = st.columns(3)
+
+        if raw_data:
+            status_col1.success("🔧 Using raw data for accurate filtering")
+        else:
+            status_col1.warning("⚠️ Using time-series API")
+
+        # Filter status
+        if region_filter != 'All Regions':
+            status_col2.info(f"🌍 {region_filter}: {len(df_agg):,} records")
+        else:
+            status_col2.info("📊 All regions")
+
+        if resource_filter != 'All Resources':
+            status_col3.info(f"⚙️ {resource_filter}")
+        else:
+            status_col3.info("📊 All resources")
+
+        st.divider()
+
+        # Debug information (moved from main area)
+        debug_col1, debug_col2 = st.columns(2)
+
+        with debug_col1:
+            st.markdown("**Filter Selection:**")
+            st.write(f"📍 Region: {region_filter}")
+            st.write(f"⚙️ Resource: {resource_filter}")
+            st.write(f"⏰ Period: {trend_period}")
+            st.write(f"📊 Metric: {metric_choice}")
+
+        with debug_col2:
+            st.markdown("**Data Summary:**")
+            st.write(f"📈 Records: {len(df_agg):,}")
+            st.write(f"📅 Date Range: {df_agg['date'].min().date()} to {df_agg['date'].max().date()}")
+            st.write(f"🔢 {metric_choice} Range: {df_agg[metric_choice].min():.1f} - {df_agg[metric_choice].max():.1f}")
+
+            # Show actual data preview
+            st.markdown("**Sample Data:**")
+            st.dataframe(df_agg.head(3), width="stretch")
+
+        # Summary metrics (moved from main area) 
+        st.markdown("**📊 Quick Summary Metrics:**")
+        summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+
+        with summary_col1:
+            st.metric("📊 Data Points", f"{len(df_agg):,}")
+
+        with summary_col2:
+            date_range = (df_agg['date'].max() - df_agg['date'].min()).days
+            st.metric("📅 Date Range", f"{date_range} days")
+
+        with summary_col3:
+            current_value = df_agg[metric_choice].iloc[-1] if len(df_agg) > 0 else 0
+            st.metric("📈 Current Value", f"{current_value:.1f}")
+
+        with summary_col4:
+            if len(df_agg) > 1:
+                trend_change = ((df_agg[metric_choice].iloc[-1] - df_agg[metric_choice].iloc[0]) / df_agg[metric_choice].iloc[0]) * 100
+                st.metric("🔄 Period Change", f"{trend_change:+.1f}%")
+            else:
+                st.metric("🔄 Period Change", "N/A")
+
+    # === 1. PRIMARY TREND ANALYSIS (NOW MUCH CLOSER TO CONTROLS) ===
+    st.markdown("### 📈 Primary Trend Analysis")
+
+    # Create primary trend chart
+    fig_primary = go.Figure()
+
+    # Base trend line
+    base_color = '#0078d4'
+    if smoothing and len(df_agg) >= 7:
+        # Apply smoothing
+        df_agg[f'{metric_choice}_smooth'] = df_agg[metric_choice].rolling(window=min(7, len(df_agg)), center=True).mean()
+
+        # Original data (lighter)
+        fig_primary.add_trace(go.Scatter(
+            x=df_agg['date'],
+            y=df_agg[metric_choice],
+            mode='lines+markers',
+            name=f'Daily {metric_choice.replace("_", " ").title()}',
+            line=dict(color='lightgray', width=1),
+            marker=dict(size=3, color='lightgray'),
+            opacity=0.5
+        ))
+
+        # Smoothed trend (bold)
+        fig_primary.add_trace(go.Scatter(
+            x=df_agg['date'],
+            y=df_agg[f'{metric_choice}_smooth'],
+            mode='lines',
+            name=f'Smoothed Trend',
+            line=dict(color=base_color, width=3)
+        ))
+
+        trend_values = df_agg[f'{metric_choice}_smooth'].dropna()
+    else:
+        fig_primary.add_trace(go.Scatter(
+            x=df_agg['date'],
+            y=df_agg[metric_choice],
+            mode='lines+markers',
+            name=f'{metric_choice.replace("_", " ").title()}',
+            line=dict(color=base_color, width=2),
+            marker=dict(size=4)
+        ))
+        trend_values = df_agg[metric_choice]
+
+    # Anomaly detection
+    if show_anomalies and len(trend_values) > 10:
+        # Simple anomaly detection using IQR
+        Q1 = trend_values.quantile(0.25)
+        Q3 = trend_values.quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+
+        anomalies = df_agg[(df_agg[metric_choice] < lower_bound) | (df_agg[metric_choice] > upper_bound)]
+
+        if not anomalies.empty:
+            fig_primary.add_trace(go.Scatter(
+                x=anomalies['date'],
+                y=anomalies[metric_choice],
+                mode='markers',
+                name='🚨 Anomalies',
+                marker=dict(size=8, color='red', symbol='diamond'),
+                hovertemplate='<b>Anomaly Detected</b><br>Date: %{x}<br>Value: %{y:.2f}<extra></extra>'
+            ))
+
+    # Pattern highlighting
+    if show_patterns and len(trend_values) > 5:
+        try:
+            from scipy.signal import find_peaks
+
+            values = trend_values.values
+            peaks, _ = find_peaks(values, height=np.percentile(values, 75))
+            valleys, _ = find_peaks(-values, height=-np.percentile(values, 25))
+
+            if len(peaks) > 0:
+                peak_dates = df_agg.iloc[peaks]['date']
+                peak_values = df_agg.iloc[peaks][metric_choice]
+
+                fig_primary.add_trace(go.Scatter(
+                    x=peak_dates,
+                    y=peak_values,
+                    mode='markers',
+                    name='⛰️ Peaks',
+                    marker=dict(size=10, color='green', symbol='triangle-up'),
+                    hovertemplate='<b>Peak</b><br>Date: %{x}<br>Value: %{y:.2f}<extra></extra>'
+                ))
+
+            if len(valleys) > 0:
+                valley_dates = df_agg.iloc[valleys]['date']
+                valley_values = df_agg.iloc[valleys][metric_choice]
+
+                fig_primary.add_trace(go.Scatter(
+                    x=valley_dates,
+                    y=valley_values,
+                    mode='markers',
+                    name='🏔️ Valleys',
+                    marker=dict(size=10, color='orange', symbol='triangle-down'),
+                    hovertemplate='<b>Valley</b><br>Date: %{x}<br>Value: %{y:.2f}<extra></extra>'
+                ))
+        except ImportError:
+            pass  # Skip pattern detection if scipy not available
+
+    # Add trend annotation
+    if len(trend_values) > 1:
+        trend_change = ((trend_values.iloc[-1] - trend_values.iloc[0]) / trend_values.iloc[0]) * 100
+        trend_color = 'green' if trend_change > 0 else 'red'
+        trend_arrow = '📈' if trend_change > 0 else '📉'
+
+        fig_primary.add_annotation(
+            x=df_agg['date'].iloc[-1],
+            y=trend_values.iloc[-1],
+            text=f"{trend_arrow} {trend_change:+.1f}%",
+            showarrow=True,
+            arrowhead=2,
+            arrowcolor=trend_color,
+            bgcolor=trend_color,
+            font=dict(color='white', size=12),
+            bordercolor=trend_color,
+            borderwidth=2
+        )
+
+    filter_text = ""
+    if region_filter != 'All Regions':
+        filter_text += f" | {region_filter}"
+    if resource_filter != 'All Resources':
+        filter_text += f" | {resource_filter}"
+
+    fig_primary.update_layout(
+        title=f"{metric_choice.replace('_', ' ').title()} Trends{filter_text}",
+        xaxis_title="Date",
+        yaxis_title=metric_choice.replace('_', ' ').title(),
+        height=500,
+        hovermode='x unified',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
+    st.plotly_chart(fig_primary, width="stretch")
+
+    # === 2. COMPARISON VIEW ===
+    if compare_mode:
+        st.markdown("### ⚖️ Regional & Resource Comparison")
+
+        comp_col1, comp_col2 = st.columns(2)
+
+        with comp_col1:
+            # Regional comparison using raw data
+            if raw_data:
+                df_raw_regional = pd.DataFrame(raw_data)
+                df_raw_regional['date'] = pd.to_datetime(df_raw_regional['date'])
+
+                # Filter by time period
+                if trend_period != "All":
+                    days = int(trend_period[:-1])
+                    latest_date = df_raw_regional['date'].max()
+                    cutoff = latest_date - timedelta(days=days)
+                    df_raw_regional = df_raw_regional[df_raw_regional['date'] >= cutoff]
+
+                # Apply resource filter if selected
+                if resource_filter != 'All Resources':
+                    df_raw_regional = df_raw_regional[df_raw_regional['resource_type'] == resource_filter]
+
+                # Aggregate by date and region
+                regional_comparison = df_raw_regional.groupby(['date', 'region']).agg({
+                    metric_choice: 'mean'
+                }).reset_index()
+
+                fig_regional = px.line(
+                    regional_comparison,
+                    x='date',
+                    y=metric_choice,
+                    color='region',
+                    title=f"Regional Comparison - {metric_choice.replace('_', ' ').title()}",
+                    color_discrete_map={
+                        'East US': '#0078d4',
+                        'West US': '#ff6b6b', 
+                        'North Europe': '#4ecdc4',
+                        'Southeast Asia': '#95e1d3'
+                    }
+                )
+                fig_regional.update_layout(height=400)
+                st.plotly_chart(fig_regional, width="stretch")
+            else:
+                st.info("📊 Raw data not available for regional comparison")
+
+        with comp_col2:
+            # Resource comparison using raw data
+            if raw_data:
+                df_raw_resource = pd.DataFrame(raw_data)
+                df_raw_resource['date'] = pd.to_datetime(df_raw_resource['date'])
+
+                # Filter by time period
+                if trend_period != "All":
+                    days = int(trend_period[:-1])
+                    latest_date = df_raw_resource['date'].max()
+                    cutoff = latest_date - timedelta(days=days)
+                    df_raw_resource = df_raw_resource[df_raw_resource['date'] >= cutoff]
+
+                # Apply region filter if selected
+                if region_filter != 'All Regions':
+                    df_raw_resource = df_raw_resource[df_raw_resource['region'] == region_filter]
+
+                # Aggregate by date and resource type
+                resource_comparison = df_raw_resource.groupby(['date', 'resource_type']).agg({
+                    metric_choice: 'mean'
+                }).reset_index()
+
+                fig_resource = px.line(
+                    resource_comparison,
+                    x='date',
+                    y=metric_choice,
+                    color='resource_type',
+                    title=f"Resource Type Comparison - {metric_choice.replace('_', ' ').title()}",
+                    color_discrete_map={
+                        'VM': '#8e44ad',
+                        'Storage': '#e67e22',
+                        'Container': '#27ae60'
+                    }
+                )
+                fig_resource.update_layout(height=400)
+                st.plotly_chart(fig_resource, width="stretch")
+            else:
+                st.info("📊 Raw data not available for resource comparison")
+
+    # === 3. PATTERN ANALYSIS ===
+    st.markdown("### 🔍 Pattern Analysis")
+
+    pattern_col1, pattern_col2 = st.columns(2)
+
+    with pattern_col1:
+        # Weekly pattern
+        df_agg['day_of_week'] = df_agg['date'].dt.day_name()
+        weekly_pattern = df_agg.groupby('day_of_week')[metric_choice].mean().reset_index()
+
+        day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        weekly_pattern['day_of_week'] = pd.Categorical(weekly_pattern['day_of_week'], categories=day_order, ordered=True)
+        weekly_pattern = weekly_pattern.sort_values('day_of_week')
+
+        fig_weekly = px.bar(
+            weekly_pattern,
+            x='day_of_week',
+            y=metric_choice,
+            title=f"Weekly Pattern{filter_text}",
+            color=metric_choice,
+            color_continuous_scale='Blues'
+        )
+        fig_weekly.update_layout(height=350)
+        st.plotly_chart(fig_weekly, width="stretch")
+
+    with pattern_col2:
+        # Monthly pattern (if enough data)
+        if len(df_agg) > 30:
+            df_agg['month'] = df_agg['date'].dt.month_name()
+            monthly_pattern = df_agg.groupby('month')[metric_choice].mean().reset_index()
+
+            month_order = ['January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December']
+            monthly_pattern['month'] = pd.Categorical(monthly_pattern['month'], categories=month_order, ordered=True)
+            monthly_pattern = monthly_pattern.sort_values('month')
+
+            fig_monthly = px.bar(
+                monthly_pattern,
+                x='month',
+                y=metric_choice,
+                title=f"Monthly Pattern{filter_text}",
+                color=metric_choice,
+                color_continuous_scale='Oranges'
+            )
+            fig_monthly.update_layout(height=350)
+            fig_monthly.update_xaxes(tickangle=45)
+            st.plotly_chart(fig_monthly, width="stretch")
+        else:
+            st.info("📊 Need more data points for monthly pattern analysis")
+
+    # === 4. ADVANCED STATISTICS (MOVED TO EXPANDER) ===
+    with st.expander("📊 Advanced Statistics & Insights", expanded=False):
+        st.markdown("### 📊 Detailed Statistics")
+
+        stats_col1, stats_col2, stats_col3, stats_col4, stats_col5 = st.columns(5)
+
+        with stats_col1:
+            volatility = df_agg[metric_choice].std()
+            st.metric("📊 Volatility", f"{volatility:.2f}")
+
+        with stats_col2:
+            avg_value = df_agg[metric_choice].mean()
+            st.metric("📈 Average", f"{avg_value:.1f}")
+
+        with stats_col3:
+            max_value = df_agg[metric_choice].max()
+            min_value = df_agg[metric_choice].min()
+            range_val = max_value - min_value
+            st.metric("📏 Range", f"{range_val:.1f}")
+
+        with stats_col4:
+            median_value = df_agg[metric_choice].median()
+            st.metric("🎯 Median", f"{median_value:.1f}")
+
+        with stats_col5:
+            if len(df_agg) > 1:
+                correlation = np.corrcoef(range(len(df_agg)), df_agg[metric_choice])[0, 1]
+                st.metric("📐 Trend Strength", f"{correlation:.3f}")
+            else:
+                st.metric("📐 Trend Strength", "N/A")
+
+    # === 5. AI-POWERED INSIGHTS ===
+    with st.expander("🤖 AI-Powered Insights & Recommendations", expanded=False):
+        insights_col1, insights_col2 = st.columns(2)
+
+        with insights_col1:
+            st.markdown("**🔍 Pattern Detection:**")
+
+            # Analyze trends
+            if len(trend_values) > 7:
+                recent_trend = trend_values.tail(7).mean()
+                overall_trend = trend_values.mean()
+                trend_momentum = ((recent_trend - overall_trend) / overall_trend) * 100
+
+                if trend_momentum > 10:
+                    st.success("📈 **Strong Upward Momentum** detected in recent data")
+                elif trend_momentum < -10:
+                    st.error("📉 **Strong Downward Momentum** detected in recent data")
+                else:
+                    st.info("➡️ **Stable Trend** - minimal momentum change")
+
+                # Seasonality detection
+                if show_patterns:
+                    weekly_var = weekly_pattern[metric_choice].var()
+                    if len(df_agg) > 0:
+                        volatility = df_agg[metric_choice].std()
+                        if weekly_var > volatility * 0.5:
+                            st.warning("🗓️ **Strong Weekly Seasonality** detected")
+                        else:
+                            st.info("📅 **Minimal Weekly Seasonality** observed")
+            else:
+                st.info("Need more data points for advanced pattern detection")
+
+        with insights_col2:
+            st.markdown("**💡 Smart Recommendations:**")
+
+            if len(df_agg) > 0:
+                current_val = df_agg[metric_choice].iloc[-1]
+                avg_val = df_agg[metric_choice].mean()
+
+                if metric_choice == 'usage_cpu':
+                    if current_val > avg_val * 1.2:
+                        st.warning("⚠️ **High CPU Alert**: Consider scaling resources")
+                    elif current_val < avg_val * 0.8:
+                        st.success("✅ **CPU Optimized**: Resources efficiently utilized")
+                    else:
+                        st.info("📊 **CPU Normal**: Operating within expected range")
+
+                elif metric_choice == 'usage_storage':
+                    if current_val > avg_val * 1.15:
+                        st.warning("💾 **Storage Growth**: Monitor capacity planning")
+                    else:
+                        st.success("💽 **Storage Stable**: Growth within normal range")
+
+                elif metric_choice == 'users_active':
+                    if current_val > avg_val * 1.1:
+                        st.success("🚀 **User Growth**: Positive engagement trend")
+                    elif current_val < avg_val * 0.9:
+                        st.warning("👥 **User Decline**: Review engagement strategies")
+                    else:
+                        st.info("👤 **User Stable**: Consistent engagement levels")
+
+
+
+
+# ===== TAB 3: ENHANCED REGIONAL PERFORMANCE ANALYSIS =====
 with tab3:
-    st.subheader("🌍 Regional Performance Analysis")
-    
-    # Load regional data
-    regional_comparison = fetch_api("regional/comparison")
-    regional_heatmap = fetch_api("regional/heatmap")
-    regional_distribution = fetch_api("regional/distribution")
-    
-    if regional_comparison:
-        # Regional comparison bar chart
-        df_regional = pd.DataFrame(regional_comparison)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Regional Performance Comparison**")
-            
-            fig = go.Figure()
-            
-            fig.add_trace(go.Bar(
-                name='Average CPU Usage',
-                x=df_regional['region'],
-                y=df_regional['usage_cpu_mean'],
-                marker_color='#0078d4'
+    st.subheader("🌍 Regional Performance Analysis & Geographic Insights")
+
+    # Load raw data for comprehensive regional analysis
+    raw_data = fetch_api("data/raw")
+
+    if not raw_data:
+        st.error("❌ Unable to load regional data")
+        st.stop()
+
+    df_raw = pd.DataFrame(raw_data)
+    df_raw['date'] = pd.to_datetime(df_raw['date'])
+
+    # === REGIONAL ANALYSIS CONTROLS ===
+    st.markdown("**🎛️ Regional Analysis Settings:**")
+
+    # Single row of controls - different from Tab 2's multi-row approach
+    ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4, ctrl_col5 = st.columns(5)
+
+    with ctrl_col1:
+        analysis_metric = st.selectbox(
+            "📊 Analysis Metric",
+            ["usage_cpu", "usage_storage", "users_active"],
+            format_func=lambda x: {
+                "usage_cpu": "🔥 CPU Usage",
+                "usage_storage": "💾 Storage Usage", 
+                "users_active": "👥 Active Users"
+            }[x]
+        )
+
+    with ctrl_col2:
+        view_type = st.selectbox(
+            "📈 View Type",
+            ["Performance", "Distribution", "Comparison", "Rankings"]
+        )
+
+    with ctrl_col3:
+        time_window = st.selectbox(
+            "⏰ Time Window", 
+            ["Last 7 Days", "Last 30 Days", "Last 90 Days", "All Time"]
+        )
+
+    with ctrl_col4:
+        resource_focus = st.selectbox(
+            "⚙️ Resource Focus",
+            ["All Resources", "VM", "Storage", "Container"]
+        )
+
+    with ctrl_col5:
+        show_insights = st.checkbox("🧠 Show Insights", value=True)
+
+    # Apply filters
+    df_filtered = df_raw.copy()
+
+    # Time filter
+    if time_window != "All Time":
+        days_map = {"Last 7 Days": 7, "Last 30 Days": 30, "Last 90 Days": 90}
+        days = days_map[time_window]
+        cutoff = df_filtered['date'].max() - timedelta(days=days)
+        df_filtered = df_filtered[df_filtered['date'] >= cutoff]
+
+    # Resource filter
+    if resource_focus != "All Resources":
+        df_filtered = df_filtered[df_filtered['resource_type'] == resource_focus]
+
+    st.divider()
+
+    # === REGIONAL PERFORMANCE OVERVIEW ===
+    st.markdown("### 🎯 Regional Performance Overview")
+
+    # Calculate regional statistics
+    regional_stats = df_filtered.groupby('region').agg({
+        analysis_metric: ['mean', 'max', 'min', 'std'],
+        'date': 'count'
+    }).round(2)
+
+    # Flatten column names
+    regional_stats.columns = ['avg', 'peak', 'min', 'volatility', 'data_points']
+    regional_stats = regional_stats.reset_index()
+
+    # Regional performance cards
+    regions = regional_stats['region'].tolist()
+    perf_col1, perf_col2, perf_col3, perf_col4 = st.columns(4)
+
+    colors = ['#0078d4', '#ff6b6b', '#4ecdc4', '#95e1d3']
+
+    for idx, (col, region) in enumerate(zip([perf_col1, perf_col2, perf_col3, perf_col4], regions)):
+        if idx < len(regions):
+            stats = regional_stats[regional_stats['region'] == region].iloc[0]
+
+            with col:
+                # Create a colored container
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, {colors[idx % len(colors)]}22, {colors[idx % len(colors)]}44); 
+                           padding: 1rem; border-radius: 8px; border-left: 4px solid {colors[idx % len(colors)]};">
+                    <h4 style="color: {colors[idx % len(colors)]}; margin: 0;">{region}</h4>
+                    <h2 style="margin: 0.5rem 0;">{stats['avg']:.1f}</h2>
+                    <p style="margin: 0; font-size: 0.9rem;">Average {analysis_metric.replace('_', ' ').title()}</p>
+                    <hr style="margin: 0.5rem 0; border: 1px solid {colors[idx % len(colors)]}33;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
+                        <span>Peak: {stats['peak']:.1f}</span>
+                        <span>Min: {stats['min']:.1f}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # === MAIN VISUALIZATION BASED ON VIEW TYPE ===
+    if view_type == "Performance":
+        st.markdown("### 📊 Regional Performance Analysis")
+
+        viz_col1, viz_col2 = st.columns([2, 1])
+
+        with viz_col1:
+            # Multi-metric regional comparison
+            fig_performance = go.Figure()
+
+            # Add bars for each metric component
+            fig_performance.add_trace(go.Bar(
+                name='Average Performance',
+                x=regional_stats['region'],
+                y=regional_stats['avg'],
+                marker_color=colors,
+                text=regional_stats['avg'].round(1),
+                textposition='outside',
+                hovertemplate='<b>%{x}</b><br>Average: %{y:.1f}<extra></extra>'
             ))
-            
-            fig.add_trace(go.Bar(
-                name='Peak CPU Usage',
-                x=df_regional['region'],
-                y=df_regional['usage_cpu_max'],
-                marker_color='#ff6b6b'
+
+            # Add line for volatility (on secondary y-axis)
+            fig_performance.add_trace(go.Scatter(
+                x=regional_stats['region'],
+                y=regional_stats['volatility'],
+                mode='lines+markers',
+                name='Volatility',
+                yaxis='y2',
+                line=dict(color='orange', width=3),
+                marker=dict(size=8, color='orange'),
+                hovertemplate='<b>%{x}</b><br>Volatility: %{y:.1f}<extra></extra>'
             ))
-            
-            fig.update_layout(
-                title="CPU Usage by Region",
+
+            fig_performance.update_layout(
+                title=f"Regional {analysis_metric.replace('_', ' ').title()} Performance",
                 xaxis_title="Region",
-                yaxis_title="CPU Usage (%)",
-                barmode='group',
+                yaxis=dict(title=f"{analysis_metric.replace('_', ' ').title()}", side='left'),
+                yaxis2=dict(title="Volatility", overlaying='y', side='right', showgrid=False),
+                height=450,
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+
+            st.plotly_chart(fig_performance, width="stretch")
+
+        with viz_col2:
+            # Regional efficiency ranking
+            st.markdown("**🏆 Regional Efficiency Ranking**")
+
+            # Calculate efficiency (lower volatility + higher performance is better)
+            regional_stats['efficiency_score'] = (
+                (regional_stats['avg'] / regional_stats['avg'].max()) * 0.7 +
+                (1 - regional_stats['volatility'] / regional_stats['volatility'].max()) * 0.3
+            ) * 100
+
+            ranked_regions = regional_stats.sort_values('efficiency_score', ascending=False)
+
+            for idx, row in ranked_regions.iterrows():
+                rank_emoji = ['🥇', '🥈', '🥉', '🏅'][min(idx, 3)]
+
+                st.markdown(f"""
+                <div style="background: #f8f9fa; padding: 0.8rem; margin: 0.3rem 0; 
+                           border-radius: 6px; border-left: 3px solid {colors[idx % len(colors)]};">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center;">
+                            <span style="font-size: 1.2rem; margin-right: 0.5rem;">{rank_emoji}</span>
+                            <strong>{row['region']}</strong>
+                        </div>
+                        <span style="font-weight: bold; color: {colors[idx % len(colors)]};">
+                            {row['efficiency_score']:.0f}%
+                        </span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666; margin-top: 0.2rem;">
+                        Avg: {row['avg']:.1f} | Volatility: {row['volatility']:.1f}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    elif view_type == "Distribution":
+        st.markdown("### 🥧 Regional Resource Distribution")
+
+        dist_col1, dist_col2 = st.columns(2)
+
+        with dist_col1:
+            # Resource distribution pie chart
+            regional_totals = df_filtered.groupby('region')[analysis_metric].sum().reset_index()
+
+            fig_pie = go.Figure(data=[go.Pie(
+                labels=regional_totals['region'],
+                values=regional_totals[analysis_metric],
+                hole=0.4,
+                marker_colors=colors,
+                textinfo='label+percent+value',
+                texttemplate='%{label}<br>%{percent}<br>%{value:.1f}'
+            )])
+
+            fig_pie.update_layout(
+                title=f"Total {analysis_metric.replace('_', ' ').title()} Distribution",
+                height=400,
+                annotations=[dict(
+                    text=f'Regional<br>Distribution', 
+                    x=0.5, y=0.5, 
+                    font_size=14, 
+                    showarrow=False
+                )]
+            )
+
+            st.plotly_chart(fig_pie, width="stretch")
+
+        with dist_col2:
+            # Resource type breakdown by region
+            resource_breakdown = df_filtered.groupby(['region', 'resource_type'])[analysis_metric].mean().reset_index()
+
+            fig_breakdown = px.bar(
+                resource_breakdown,
+                x='region',
+                y=analysis_metric,
+                color='resource_type',
+                title=f"Average {analysis_metric.replace('_', ' ').title()} by Resource Type",
+                color_discrete_map={'VM': '#8e44ad', 'Storage': '#e67e22', 'Container': '#27ae60'},
                 height=400
             )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            if regional_distribution:
-                st.markdown("**Regional Usage Distribution**")
-                df_dist = pd.DataFrame(regional_distribution)
-                
-                fig = go.Figure(data=[go.Pie(
-                    labels=df_dist['region'],
-                    values=df_dist['usage_cpu'],
-                    hole=0.4,
-                    marker_colors=['#0078d4', '#ff6b6b', '#4ecdc4', '#95e1d3']
-                )])
-                
-                fig.update_layout(
-                    title="Total CPU Usage Distribution by Region",
-                    height=400,
-                    annotations=[dict(text='Regional<br>Share', x=0.5, y=0.5, font_size=16, showarrow=False)]
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Regional heatmap
-        if regional_heatmap:
-            st.markdown("**Regional Performance Heatmap**")
-            df_heatmap = pd.DataFrame(regional_heatmap)
-            
-            heatmap_pivot = df_heatmap.pivot_table(
-                values='usage_cpu',
-                index='region',
-                columns='resource_type',
-                aggfunc='mean'
+
+            fig_breakdown.update_layout(
+                xaxis_title="Region",
+                yaxis_title=analysis_metric.replace('_', ' ').title(),
+                legend=dict(title="Resource Type")
             )
-            
-            fig = go.Figure(data=go.Heatmap(
-                z=heatmap_pivot.values,
-                x=heatmap_pivot.columns,
-                y=heatmap_pivot.index,
-                colorscale='RdYlBu_r',
-                text=heatmap_pivot.values.round(1),
-                texttemplate='%{text}%',
-                textfont={"size": 12},
-                hoverongaps=False,
-                colorbar=dict(title="CPU Usage %")
+
+            st.plotly_chart(fig_breakdown, width="stretch")
+
+    elif view_type == "Comparison":
+        st.markdown("### ⚖️ Head-to-Head Regional Comparison")
+
+        # Regional comparison matrix
+        comparison_metrics = ['usage_cpu', 'usage_storage', 'users_active']
+
+        # Create comparison data
+        comparison_data = df_filtered.groupby('region')[comparison_metrics].mean().round(1)
+
+        # Normalize for radar chart (0-100 scale)
+        comparison_normalized = comparison_data.copy()
+        for col in comparison_metrics:
+            max_val = comparison_data[col].max()
+            min_val = comparison_data[col].min()
+            if max_val > min_val:
+                comparison_normalized[col] = ((comparison_data[col] - min_val) / (max_val - min_val)) * 100
+            else:
+                comparison_normalized[col] = 50  # If all values are the same
+
+        # Radar chart comparing regions
+        fig_radar = go.Figure()
+
+        for idx, region in enumerate(comparison_normalized.index):
+            values = comparison_normalized.loc[region].tolist()
+            values.append(values[0])  # Close the radar
+
+            labels = ['CPU Usage', 'Storage Usage', 'User Activity']
+            labels.append(labels[0])  # Close the radar
+
+            fig_radar.add_trace(go.Scatterpolar(
+                r=values,
+                theta=labels,
+                fill='toself',
+                name=region,
+                line_color=colors[idx % len(colors)],
+                fillcolor=f'rgba({",".join([str(int(colors[idx % len(colors)][i:i+2], 16)) for i in (1, 3, 5)])}, 0.1)'
             ))
-            
-            fig.update_layout(
-                title="Average CPU Usage by Region and Resource Type",
-                xaxis_title="Resource Type",
-                yaxis_title="Region",
-                height=300
+
+        fig_radar.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 100],
+                    tickmode='linear',
+                    tick0=0,
+                    dtick=25
+                )
+            ),
+            title="Regional Performance Radar Comparison (Normalized)",
+            height=500,
+            showlegend=True
+        )
+
+        st.plotly_chart(fig_radar, width="stretch")
+
+        # Detailed comparison table
+        st.markdown("**📋 Detailed Regional Comparison**")
+
+        # Add ranking for each metric
+        for col in comparison_metrics:
+            comparison_data[f'{col}_rank'] = comparison_data[col].rank(ascending=False).astype(int)
+
+        # Display formatted table
+        display_data = comparison_data.copy()
+
+        # Format the display
+        st.dataframe(
+            display_data.style.format({
+                'usage_cpu': '{:.1f}%',
+                'usage_storage': '{:.1f} GB',
+                'users_active': '{:.0f}',
+                'usage_cpu_rank': '#{:.0f}',
+                'usage_storage_rank': '#{:.0f}',
+                'users_active_rank': '#{:.0f}'
+            }).background_gradient(subset=['usage_cpu', 'usage_storage', 'users_active'], cmap='RdYlBu_r'),
+            width="stretch"
+        )
+
+    elif view_type == "Rankings":
+        st.markdown("### 🏆 Regional Performance Rankings")
+
+        # Create comprehensive ranking system
+        ranking_metrics = ['avg', 'peak', 'volatility']
+        regional_stats_rank = regional_stats.copy()
+
+        # Calculate ranks (lower volatility is better, so we reverse it)
+        regional_stats_rank['avg_rank'] = regional_stats_rank['avg'].rank(ascending=False)
+        regional_stats_rank['peak_rank'] = regional_stats_rank['peak'].rank(ascending=False)
+        regional_stats_rank['volatility_rank'] = regional_stats_rank['volatility'].rank(ascending=True)  # Lower is better
+
+        # Calculate overall score
+        regional_stats_rank['overall_score'] = (
+            regional_stats_rank['avg_rank'] * 0.4 +
+            regional_stats_rank['peak_rank'] * 0.3 +
+            regional_stats_rank['volatility_rank'] * 0.3
+        )
+
+        regional_stats_rank['overall_rank'] = regional_stats_rank['overall_score'].rank()
+
+        # Sort by overall rank
+        ranked_data = regional_stats_rank.sort_values('overall_rank')
+
+        rank_col1, rank_col2 = st.columns([2, 1])
+
+        with rank_col1:
+            # Ranking bar chart
+            fig_rank = go.Figure()
+
+            fig_rank.add_trace(go.Bar(
+                x=ranked_data['region'],
+                y=ranked_data['avg'],
+                name='Average Performance',
+                marker_color=[colors[i % len(colors)] for i in range(len(ranked_data))],
+                text=[f"#{int(rank)}" for rank in ranked_data['overall_rank']],
+                textposition='outside',
+                hovertemplate='<b>%{x}</b><br>Avg: %{y:.1f}<br>Rank: #%{text}<extra></extra>'
+            ))
+
+            fig_rank.update_layout(
+                title=f"Regional Rankings - {analysis_metric.replace('_', ' ').title()}",
+                xaxis_title="Region (Ordered by Overall Rank)",
+                yaxis_title=analysis_metric.replace('_', ' ').title(),
+                height=400,
+                showlegend=False
             )
-            
-            st.plotly_chart(fig, use_container_width=True)
+
+            st.plotly_chart(fig_rank, width="stretch")
+
+        with rank_col2:
+            st.markdown("**🏅 Overall Rankings**")
+
+            for idx, (_, row) in enumerate(ranked_data.iterrows()):
+                rank_icons = ['👑', '🥇', '🥈', '🥉']
+                icon = rank_icons[min(idx, 3)] if idx < 4 else f"#{idx+1}"
+
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, {colors[idx % len(colors)]}22, {colors[idx % len(colors)]}44);
+                           padding: 1rem; margin: 0.5rem 0; border-radius: 8px;
+                           border-left: 4px solid {colors[idx % len(colors)]};">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center;">
+                            <span style="font-size: 1.5rem; margin-right: 0.5rem;">{icon}</span>
+                            <div>
+                                <strong style="color: {colors[idx % len(colors)]};">{row['region']}</strong>
+                                <br><small>Overall Score: {row['overall_score']:.1f}</small>
+                            </div>
+                        </div>
+                        <div style="text-align: right; font-size: 0.8rem;">
+                            <div>Avg: #{int(row['avg_rank'])}</div>
+                            <div>Peak: #{int(row['peak_rank'])}</div>
+                            <div>Stability: #{int(row['volatility_rank'])}</div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # === REGIONAL HEATMAP (ALWAYS SHOWN) ===
+    st.divider()
+    st.markdown("### 🔥 Regional Performance Heatmap")
+
+    # Create heatmap data
+    heatmap_data = df_filtered.groupby(['region', 'resource_type'])[analysis_metric].mean().reset_index()
+    heatmap_pivot = heatmap_data.pivot(index='region', columns='resource_type', values=analysis_metric)
+
+    fig_heatmap = go.Figure(data=go.Heatmap(
+        z=heatmap_pivot.values,
+        x=heatmap_pivot.columns,
+        y=heatmap_pivot.index,
+        colorscale='RdYlBu_r',
+        text=heatmap_pivot.values.round(1),
+        texttemplate='%{text}',
+        textfont={"size": 12},
+        hoverongaps=False,
+        colorbar=dict(title=analysis_metric.replace('_', ' ').title())
+    ))
+
+    fig_heatmap.update_layout(
+        title=f"Regional-Resource {analysis_metric.replace('_', ' ').title()} Heatmap",
+        xaxis_title="Resource Type",
+        yaxis_title="Region",
+        height=300
+    )
+
+    st.plotly_chart(fig_heatmap, width="stretch")
+
+    # === REGIONAL INSIGHTS (OPTIONAL) ===
+    if show_insights:
+        st.divider()
+        st.markdown("### 🧠 Regional Performance Insights")
+
+        insights_col1, insights_col2, insights_col3 = st.columns(3)
+
+        with insights_col1:
+            st.markdown("**🏆 Best Performers**")
+            best_region = regional_stats.loc[regional_stats['avg'].idxmax()]
+            most_stable = regional_stats.loc[regional_stats['volatility'].idxmin()]
+
+            st.success(f"🥇 **Highest Average**: {best_region['region']} ({best_region['avg']:.1f})")
+            st.info(f"📊 **Most Stable**: {most_stable['region']} (σ: {most_stable['volatility']:.1f})")
+
+        with insights_col2:
+            st.markdown("**📊 Key Statistics**")
+            total_avg = regional_stats['avg'].mean()
+            performance_gap = regional_stats['avg'].max() - regional_stats['avg'].min()
+
+            st.metric("Global Average", f"{total_avg:.1f}")
+            st.metric("Performance Gap", f"{performance_gap:.1f}")
+
+        with insights_col3:
+            st.markdown("**💡 Recommendations**")
+
+            if performance_gap > total_avg * 0.2:  # 20% gap
+                st.warning("⚠️ **High regional disparity** detected. Consider resource rebalancing.")
+            else:
+                st.success("✅ **Balanced regional performance** across all regions.")
+
+            high_volatility = regional_stats[regional_stats['volatility'] > regional_stats['volatility'].mean()]
+            if len(high_volatility) > 0:
+                volatile_regions = ", ".join(high_volatility['region'].tolist())
+                st.info(f"📈 **Monitor volatility** in: {volatile_regions}")
+
+    else:
+        st.error("❌ Unable to load regional data")
 
 # ===== TAB 4: RESOURCE TYPES =====
 with tab4:
