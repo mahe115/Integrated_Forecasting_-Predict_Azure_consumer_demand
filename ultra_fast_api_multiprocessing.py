@@ -366,6 +366,7 @@ def get_data_raw():
     return jsonify(df.to_dict('records'))
 
 
+
 @app.route('/api/time-series')
 @windows_cache('fast')
 def get_time_series():

@@ -176,15 +176,14 @@ with st.sidebar:
         end_date = None
 
 # Tab Navigation
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📊 Overview",
     "📈 Trends", 
     "🌍 Regional",
     "⚙️ Resources",
     "🔗 Correlations",
-    "🎉 Holidays",
+    "🎉 User Engagement",
     "🤖 Forecasting",
-    "👥 Engagement"
 ])
 
 # ===== TAB 1: OVERVIEW & KPIs =====
@@ -1435,291 +1434,2087 @@ with tab3:
     else:
         st.error("❌ Unable to load regional data")
 
-# ===== TAB 4: RESOURCE TYPES =====
-with tab4:
-    st.subheader("⚙️ Resource Type Analysis")
-    
-    # Load resource data
-    resource_util = fetch_api("resources/utilization")
-    resource_dist = fetch_api("resources/distribution")
-    resource_efficiency = fetch_api("resources/efficiency")
-    
-    if resource_util:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Stacked area chart
-            st.markdown("**Resource Utilization Over Time**")
-            df_util = pd.DataFrame(resource_util)
-            df_util['date'] = pd.to_datetime(df_util['date'])
-            
-            # Pivot for stacked area chart
-            util_pivot = df_util.pivot_table(
-                values='usage_cpu',
-                index='date',
-                columns='resource_type',
-                aggfunc='mean'
-            ).fillna(0)
-            
-            fig = go.Figure()
-            
-            colors = ['#0078d4', '#ff6b6b', '#4ecdc4']
-            for i, resource in enumerate(util_pivot.columns):
-                fig.add_trace(go.Scatter(
-                    x=util_pivot.index,
-                    y=util_pivot[resource],
-                    mode='lines',
-                    stackgroup='one',
-                    name=resource,
-                    fill='tonexty' if i > 0 else 'tozeroy',
-                    line=dict(color=colors[i % len(colors)], width=0),
-                    hovertemplate=f'<b>{resource}</b><br>Date: %{{x}}<br>Usage: %{{y:.1f}}%<extra></extra>'
-                ))
-            
-            fig.update_layout(
-                title="Resource Type Usage Over Time",
-                xaxis_title="Date",
-                yaxis_title="CPU Usage (%)",
-                hovermode='x unified',
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            if resource_dist:
-                st.markdown("**Resource Distribution**")
-                df_dist = pd.DataFrame(resource_dist)
-                
-                fig = go.Figure(data=[go.Pie(
-                    labels=df_dist['resource_type'],
-                    values=df_dist['usage_cpu_mean'],
-                    textinfo='label+percent',
-                    marker_colors=['#0078d4', '#ff6b6b', '#4ecdc4']
-                )])
-                
-                fig.update_layout(
-                    title="Average Resource Type Distribution",
-                    height=400
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Resource efficiency
-        if resource_efficiency:
-            st.markdown("**Resource Efficiency Analysis**")
-            df_eff = pd.DataFrame(resource_efficiency)
-            
-            fig = go.Figure()
-            
-            fig.add_trace(go.Bar(
-                y=df_eff['resource_type'],
-                x=df_eff['cpu_per_user'],
-                name='CPU per User (%/user)',
-                orientation='h',
-                marker_color='#0078d4'
-            ))
-            
-            fig.update_layout(
-                title="Resource Efficiency - CPU per Active User",
-                xaxis_title="CPU Usage per User (%/user)",
-                yaxis_title="Resource Type",
-                height=300
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
 
-# ===== TAB 5: CORRELATION ANALYSIS =====
+
+# ===== TAB 4: FIXED RESOURCE TYPE ANALYSIS =====
+with tab4:
+    st.subheader("⚙️ Resource Type Performance & Optimization Analysis")
+
+    try:
+        # Load raw data for comprehensive resource analysis
+        raw_data = fetch_api("data/raw")
+
+        if not raw_data:
+            st.error("❌ Unable to load resource data")
+            st.stop()
+
+        df_raw = pd.DataFrame(raw_data)
+        df_raw['date'] = pd.to_datetime(df_raw['date'])
+
+        # Data validation
+        required_columns = ['resource_type', 'usage_cpu', 'usage_storage', 'users_active']
+        missing_columns = [col for col in required_columns if col not in df_raw.columns]
+
+        if missing_columns:
+            st.error(f"❌ Missing required columns: {missing_columns}")
+            st.stop()
+
+        # Clean data - handle NaN and negative values
+        df_raw = df_raw.dropna(subset=required_columns)
+        df_raw['usage_cpu'] = df_raw['usage_cpu'].clip(0, 100)
+        df_raw['usage_storage'] = df_raw['usage_storage'].clip(0, None)
+        df_raw['users_active'] = df_raw['users_active'].clip(0, None)
+
+    except Exception as e:
+        st.error(f"❌ Error loading data: {str(e)}")
+        st.stop()
+
+    # === RESOURCE-FOCUSED CONTROL PANEL ===
+    st.markdown("**🔧 Resource Analysis Dashboard:**")
+
+    # Vertical control layout
+    control_col1, control_col2 = st.columns([1, 3])
+
+    with control_col1:
+        st.markdown("**⚙️ Resource Settings**")
+
+        available_resources = df_raw['resource_type'].unique().tolist()
+        selected_resources = st.multiselect(
+            "Resource Types",
+            options=available_resources,
+            default=available_resources,
+            help="Select which resource types to analyze"
+        )
+
+        analysis_dimension = st.radio(
+            "Analysis Focus",
+            options=["Utilization", "Efficiency", "Capacity", "Cost-Benefit"],
+            help="Choose the primary analysis dimension"
+        )
+
+        benchmark_mode = st.toggle(
+            "⚡ Benchmark Mode",
+            help="Compare resources against optimal performance thresholds"
+        )
+
+        show_optimization = st.toggle(
+            "🎯 Show Optimization",
+            value=True,
+            help="Display optimization recommendations"
+        )
+
+    with control_col2:
+        # Quick resource overview cards (horizontal layout)
+        if selected_resources:
+            st.markdown("**📊 Resource Overview**")
+
+            try:
+                overview_cols = st.columns(len(selected_resources))
+                resource_colors = {'VM': '#8e44ad', 'Storage': '#e67e22', 'Container': '#27ae60'}
+
+                for idx, resource in enumerate(selected_resources):
+                    resource_data = df_raw[df_raw['resource_type'] == resource]
+
+                    if not resource_data.empty:
+                        # Safe calculations with error handling
+                        avg_cpu = resource_data['usage_cpu'].mean() if len(resource_data) > 0 else 0
+                        avg_storage = resource_data['usage_storage'].mean() if len(resource_data) > 0 else 0
+                        avg_users = resource_data['users_active'].mean() if len(resource_data) > 0 else 0
+
+                        color = resource_colors.get(resource, '#3498db')
+
+                        with overview_cols[idx]:
+                            st.markdown(f"""
+                            <div style="background: linear-gradient(135deg, {color}22, {color}44);
+                                       padding: 1rem; border-radius: 8px; text-align: center;
+                                       border: 2px solid {color};">
+                                <h3 style="color: {color}; margin: 0;">{resource}</h3>
+                                <hr style="margin: 0.5rem 0; border-color: {color}66;">
+                                <div style="font-size: 0.9rem;">
+                                    <div>🔥 CPU: {avg_cpu:.1f}%</div>
+                                    <div>💾 Storage: {avg_storage:.0f}GB</div>
+                                    <div>👥 Users: {avg_users:.0f}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Error creating overview cards: {str(e)}")
+
+    if not selected_resources:
+        st.warning("⚠️ Please select at least one resource type to analyze")
+        st.stop()
+
+    # Filter data by selected resources
+    df_filtered = df_raw[df_raw['resource_type'].isin(selected_resources)]
+
+    if df_filtered.empty:
+        st.warning("⚠️ No data available for selected resource types")
+        st.stop()
+
+    st.divider()
+
+    try:
+        # === MAIN ANALYSIS SECTION ===
+        if analysis_dimension == "Utilization":
+            st.markdown("### 📈 Resource Utilization Analysis")
+
+            util_col1, util_col2 = st.columns([2, 1])
+
+            with util_col1:
+                # FIXED: Import statement and error handling
+                from plotly.subplots import make_subplots
+
+                # Multi-resource utilization comparison
+                fig_util = make_subplots(
+                    rows=2, cols=2,
+                    subplot_titles=('CPU Utilization Pattern', 'Storage Usage Pattern', 
+                                   'User Activity Pattern', 'Resource Efficiency Score'),
+                    specs=[[{}, {}], [{}, {}]],
+                    vertical_spacing=0.12,
+                    horizontal_spacing=0.1
+                )
+
+                for idx, resource in enumerate(selected_resources):
+                    color = resource_colors.get(resource, '#3498db')
+                    resource_data = df_filtered[df_filtered['resource_type'] == resource]
+
+                    if not resource_data.empty:
+                        # FIXED: Safe groupby with error handling
+                        try:
+                            daily_data = resource_data.groupby('date').agg({
+                                'usage_cpu': 'mean',
+                                'usage_storage': 'mean',
+                                'users_active': 'mean'
+                            }).reset_index()
+
+                            if not daily_data.empty:
+                                # CPU utilization (subplot 1)
+                                fig_util.add_trace(
+                                    go.Scatter(x=daily_data['date'], y=daily_data['usage_cpu'], 
+                                              name=f'{resource} CPU', line=dict(color=color, width=2)),
+                                    row=1, col=1
+                                )
+
+                                # Storage utilization (subplot 2)  
+                                fig_util.add_trace(
+                                    go.Scatter(x=daily_data['date'], y=daily_data['usage_storage'],
+                                              name=f'{resource} Storage', line=dict(color=color, width=2, dash='dot')),
+                                    row=1, col=2
+                                )
+
+                                # User activity (subplot 3)
+                                fig_util.add_trace(
+                                    go.Scatter(x=daily_data['date'], y=daily_data['users_active'],
+                                              name=f'{resource} Users', line=dict(color=color, width=2, dash='dash')),
+                                    row=2, col=1
+                                )
+
+                                # FIXED: Safe efficiency calculation
+                                efficiency = []
+                                for _, row in daily_data.iterrows():
+                                    if row['users_active'] > 0:
+                                        eff = (row['usage_cpu'] / row['users_active']) * 10
+                                    else:
+                                        eff = row['usage_cpu']  # Fallback if no users
+                                    efficiency.append(eff)
+
+                                # Efficiency score (subplot 4)
+                                fig_util.add_trace(
+                                    go.Scatter(x=daily_data['date'], y=efficiency,
+                                              name=f'{resource} Efficiency', line=dict(color=color, width=3)),
+                                    row=2, col=2
+                                )
+                        except Exception as subplot_error:
+                            st.warning(f"Error processing {resource} data: {str(subplot_error)}")
+
+                fig_util.update_layout(height=600, showlegend=True, 
+                                      title_text="Comprehensive Resource Utilization Dashboard")
+                st.plotly_chart(fig_util, width="stretch")
+
+            with util_col2:
+                # Resource performance matrix
+                st.markdown("**🎯 Performance Matrix**")
+
+                try:
+                    for resource in selected_resources:
+                        resource_data = df_filtered[df_filtered['resource_type'] == resource]
+                        color = resource_colors.get(resource, '#3498db')
+
+                        if not resource_data.empty:
+                            # FIXED: Safe calculations with bounds checking
+                            cpu_avg = resource_data['usage_cpu'].mean()
+                            cpu_peak = resource_data['usage_cpu'].max() 
+                            utilization_rate = min(100, max(0, cpu_avg))  # Clamp between 0-100
+
+                            # Performance scoring
+                            if utilization_rate > 80:
+                                performance_status = "🔴 High Load"
+                                performance_color = "#e74c3c"
+                            elif utilization_rate > 60:
+                                performance_status = "🟡 Moderate Load"
+                                performance_color = "#f39c12"
+                            else:
+                                performance_status = "🟢 Optimal"
+                                performance_color = "#27ae60"
+
+                            st.markdown(f"""
+                            <div style="background: white; padding: 1rem; margin: 0.5rem 0; 
+                                       border-radius: 8px; border-left: 4px solid {color};
+                                       box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <strong style="color: {color};">{resource}</strong>
+                                    <span style="color: {performance_color}; font-weight: bold;">{performance_status}</span>
+                                </div>
+                                <hr style="margin: 0.5rem 0; border-color: #eee;">
+                                <div style="font-size: 0.9rem;">
+                                    <div>📊 Avg CPU: {cpu_avg:.1f}%</div>
+                                    <div>⚡ Peak CPU: {cpu_peak:.1f}%</div>
+                                    <div>🎯 Utilization: {utilization_rate:.1f}%</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                except Exception as matrix_error:
+                    st.error(f"Error creating performance matrix: {str(matrix_error)}")
+
+        elif analysis_dimension == "Efficiency":
+            st.markdown("### ⚡ Resource Efficiency Analysis")
+
+            eff_col1, eff_col2 = st.columns(2)
+
+            with eff_col1:
+                # Efficiency bubble chart
+                st.markdown("**🎈 Resource Efficiency Bubble Chart**")
+
+                try:
+                    efficiency_data = []
+                    for resource in selected_resources:
+                        resource_data = df_filtered[df_filtered['resource_type'] == resource]
+                        color = resource_colors.get(resource, '#3498db')
+
+                        if not resource_data.empty:
+                            # FIXED: Safe efficiency calculations
+                            total_users = resource_data['users_active'].sum()
+                            avg_cpu = resource_data['usage_cpu'].mean()
+                            avg_storage = resource_data['usage_storage'].mean()
+                            avg_users = resource_data['users_active'].mean()
+
+                            # Avoid division by zero
+                            if avg_users > 0:
+                                cpu_efficiency = avg_cpu / avg_users
+                                storage_efficiency = avg_storage / avg_users
+                            else:
+                                cpu_efficiency = avg_cpu
+                                storage_efficiency = avg_storage
+
+                            efficiency_data.append({
+                                'resource_type': resource,
+                                'cpu_efficiency': cpu_efficiency,
+                                'storage_efficiency': storage_efficiency,
+                                'total_users': total_users,
+                                'color': color
+                            })
+
+                    if efficiency_data:
+                        eff_df = pd.DataFrame(efficiency_data)
+
+                        fig_bubble = go.Figure()
+
+                        for _, row in eff_df.iterrows():
+                            # FIXED: Safe bubble size calculation
+                            bubble_size = max(20, min(80, row['total_users'] / 10 if row['total_users'] > 0 else 20))
+
+                            fig_bubble.add_trace(go.Scatter(
+                                x=[row['cpu_efficiency']],
+                                y=[row['storage_efficiency']],
+                                mode='markers',
+                                marker=dict(
+                                    size=bubble_size,
+                                    color=row['color'],
+                                    opacity=0.7,
+                                    line=dict(width=2, color='white')
+                                ),
+                                name=row['resource_type'],
+                                text=f"{row['resource_type']}<br>Users: {row['total_users']:.0f}",
+                                hovertemplate='<b>%{text}</b><br>CPU/User: %{x:.2f}<br>Storage/User: %{y:.1f}<extra></extra>'
+                            ))
+
+                        fig_bubble.update_layout(
+                            title="Resource Efficiency: CPU vs Storage per User",
+                            xaxis_title="CPU Usage per User (%)",
+                            yaxis_title="Storage Usage per User (GB)",
+                            height=400,
+                            showlegend=True
+                        )
+
+                        st.plotly_chart(fig_bubble, width="stretch")
+                    else:
+                        st.warning("No efficiency data available")
+
+                except Exception as bubble_error:
+                    st.error(f"Error creating bubble chart: {str(bubble_error)}")
+
+            with eff_col2:
+                # Efficiency scoring
+                st.markdown("**🏆 Efficiency Scoring**")
+
+                try:
+                    efficiency_scores = []
+                    for resource in selected_resources:
+                        resource_data = df_filtered[df_filtered['resource_type'] == resource]
+                        color = resource_colors.get(resource, '#3498db')
+
+                        if not resource_data.empty:
+                            # FIXED: Improved efficiency scoring logic
+                            avg_cpu = resource_data['usage_cpu'].mean()
+                            avg_users = resource_data['users_active'].mean()
+                            avg_storage = resource_data['usage_storage'].mean()
+
+                            # Efficiency metrics (higher is better)
+                            cpu_efficiency = max(0, min(100, 100 - avg_cpu))  # Lower CPU usage is more efficient
+
+                            if avg_cpu > 0:
+                                user_efficiency = min(100, (avg_users / avg_cpu) * 50)  # Users per CPU unit
+                            else:
+                                user_efficiency = 50  # Neutral score
+
+                            storage_efficiency = max(0, min(100, 100 - min(100, avg_storage / 20)))  # Normalized storage
+
+                            # Overall score (weighted average)
+                            overall_score = (cpu_efficiency * 0.4 + user_efficiency * 0.4 + storage_efficiency * 0.2)
+                            overall_score = max(0, min(100, overall_score))
+
+                            efficiency_scores.append({
+                                'resource': resource,
+                                'score': overall_score,
+                                'cpu_eff': cpu_efficiency,
+                                'user_eff': user_efficiency,
+                                'storage_eff': storage_efficiency,
+                                'color': color
+                            })
+
+                    # Sort by overall score
+                    efficiency_scores.sort(key=lambda x: x['score'], reverse=True)
+
+                    for idx, score_data in enumerate(efficiency_scores):
+                        resource = score_data['resource']
+                        score = score_data['score']
+                        color = score_data['color']
+
+                        # Determine grade
+                        if score >= 80:
+                            grade = "A+"
+                            grade_color = "#27ae60"
+                        elif score >= 70:
+                            grade = "A"
+                            grade_color = "#2ecc71"
+                        elif score >= 60:
+                            grade = "B+"
+                            grade_color = "#f39c12"
+                        elif score >= 50:
+                            grade = "B"
+                            grade_color = "#e67e22"
+                        else:
+                            grade = "C"
+                            grade_color = "#e74c3c"
+
+                        rank_emoji = ['🥇', '🥈', '🥉'][min(idx, 2)] if len(efficiency_scores) > idx else f"#{idx+1}"
+
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, {color}11, {color}22);
+                                   padding: 1rem; margin: 0.5rem 0; border-radius: 8px;
+                                   border: 2px solid {color};">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center;">
+                                    <span style="font-size: 1.5rem; margin-right: 0.5rem;">{rank_emoji}</span>
+                                    <strong style="color: {color};">{resource}</strong>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 1.2rem; font-weight: bold; color: {grade_color};">{grade}</div>
+                                    <div style="font-size: 0.9rem;">Score: {score:.1f}</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #666;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>CPU: {score_data['cpu_eff']:.1f}</span>
+                                    <span>User: {score_data['user_eff']:.1f}</span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                except Exception as scoring_error:
+                    st.error(f"Error creating efficiency scoring: {str(scoring_error)}")
+
+        elif analysis_dimension == "Capacity":
+            st.markdown("### 📊 Resource Capacity Analysis")
+
+            cap_col1, cap_col2 = st.columns([3, 1])
+
+            with cap_col1:
+                # Capacity utilization over time
+                st.markdown("**📈 Capacity Utilization Timeline**")
+
+                try:
+                    fig_capacity = go.Figure()
+
+                    for resource in selected_resources:
+                        resource_data = df_filtered[df_filtered['resource_type'] == resource]
+                        color = resource_colors.get(resource, '#3498db')
+
+                        if not resource_data.empty:
+                            # FIXED: Safe daily aggregation
+                            try:
+                                daily_data = resource_data.groupby('date').agg({
+                                    'usage_cpu': 'max',
+                                    'usage_storage': 'max',
+                                    'users_active': 'max'
+                                }).reset_index()
+
+                                if not daily_data.empty:
+                                    # Calculate capacity utilization percentage (assuming 100% CPU is max capacity)
+                                    cpu_utilization = daily_data['usage_cpu'].clip(0, 100)
+
+                                    fig_capacity.add_trace(go.Scatter(
+                                        x=daily_data['date'],
+                                        y=cpu_utilization,
+                                        mode='lines+markers',
+                                        name=f'{resource} Capacity',
+                                        line=dict(color=color, width=3),
+                                        hovertemplate=f'<b>{resource}</b><br>Date: %{{x}}<br>Capacity: %{{y:.1f}}%<extra></extra>'
+                                    ))
+                            except Exception as daily_error:
+                                st.warning(f"Error processing daily data for {resource}: {str(daily_error)}")
+
+                    # Add capacity thresholds
+                    fig_capacity.add_hline(y=80, line_dash="dash", line_color="orange", 
+                                          annotation_text="Warning Threshold (80%)")
+                    fig_capacity.add_hline(y=95, line_dash="dash", line_color="red", 
+                                          annotation_text="Critical Threshold (95%)")
+
+                    fig_capacity.update_layout(
+                        title="Resource Capacity Utilization Over Time",
+                        xaxis_title="Date",
+                        yaxis_title="Capacity Utilization (%)",
+                        height=400,
+                        yaxis=dict(range=[0, 110])
+                    )
+
+                    st.plotly_chart(fig_capacity, width="stretch")
+
+                except Exception as capacity_error:
+                    st.error(f"Error creating capacity chart: {str(capacity_error)}")
+
+            with cap_col2:
+                # Capacity status indicators
+                st.markdown("**🚦 Capacity Status**")
+
+                try:
+                    for resource in selected_resources:
+                        resource_data = df_filtered[df_filtered['resource_type'] == resource]
+                        color = resource_colors.get(resource, '#3498db')
+
+                        if not resource_data.empty and len(resource_data) > 0:
+                            # FIXED: Safe current and max calculation
+                            current_cpu = resource_data['usage_cpu'].iloc[-1] if len(resource_data) > 0 else 0
+                            max_cpu = resource_data['usage_cpu'].max()
+
+                            # Capacity status
+                            if max_cpu >= 95:
+                                status = "🔴 Critical"
+                                status_color = "#e74c3c"
+                            elif max_cpu >= 80:
+                                status = "🟡 Warning"
+                                status_color = "#f39c12"
+                            else:
+                                status = "🟢 Normal"
+                                status_color = "#27ae60"
+
+                            # FIXED: Safe trend calculation
+                            capacity_projection = "Insufficient data"
+                            if len(resource_data) > 14:  # Need at least 14 days for trend
+                                try:
+                                    recent_avg = resource_data['usage_cpu'].tail(7).mean()
+                                    previous_avg = resource_data['usage_cpu'].head(7).mean()
+
+                                    if recent_avg > previous_avg and previous_avg > 0:
+                                        trend_rate = (recent_avg - previous_avg) / 7  # Daily trend
+                                        if trend_rate > 0.1 and current_cpu < 100:  # Significant upward trend
+                                            days_to_capacity = (100 - current_cpu) / trend_rate
+                                            if days_to_capacity < 365:
+                                                capacity_projection = f"{days_to_capacity:.0f} days"
+                                            else:
+                                                capacity_projection = "1+ year"
+                                        else:
+                                            capacity_projection = "Stable"
+                                    else:
+                                        capacity_projection = "Stable/Decreasing"
+                                except:
+                                    capacity_projection = "Calculation error"
+
+                            st.markdown(f"""
+                            <div style="background: white; padding: 1rem; margin: 0.5rem 0; 
+                                       border-radius: 8px; border-left: 4px solid {color};
+                                       box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <strong style="color: {color};">{resource}</strong>
+                                    <span style="color: {status_color}; font-weight: bold; font-size: 0.9rem;">{status}</span>
+                                </div>
+                                <div style="font-size: 0.9rem;">
+                                    <div>Current: {current_cpu:.1f}%</div>
+                                    <div>Peak: {max_cpu:.1f}%</div>
+                                    <div style="margin-top: 0.3rem; font-size: 0.8rem; color: #666;">
+                                        Time to Capacity:<br><strong>{capacity_projection}</strong>
+                                    </div>
+                                </div>
+                                <div style="background: linear-gradient(90deg, {status_color}22 0%, transparent 100%);
+                                           padding: 0.2rem; border-radius: 3px; margin-top: 0.3rem;">
+                                    <div style="width: {min(100, max_cpu)}%; background: {status_color}; height: 4px; border-radius: 2px;"></div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                except Exception as status_error:
+                    st.error(f"Error creating capacity status: {str(status_error)}")
+
+        elif analysis_dimension == "Cost-Benefit":
+            st.markdown("### 💰 Resource Cost-Benefit Analysis")
+
+            cb_col1, cb_col2 = st.columns([2, 1])
+
+            with cb_col1:
+                # Cost-benefit matrix
+                st.markdown("**💰 Resource Value Analysis**")
+
+                try:
+                    # FIXED: Safer cost-benefit calculations
+                    cost_benefit_data = []
+                    base_costs = {'VM': 1.0, 'Storage': 0.3, 'Container': 0.8}  # Relative cost per unit
+
+                    for resource in selected_resources:
+                        resource_data = df_filtered[df_filtered['resource_type'] == resource]
+                        color = resource_colors.get(resource, '#3498db')
+
+                        if not resource_data.empty:
+                            # Calculate benefit metrics safely
+                            avg_users_served = resource_data['users_active'].mean()
+                            avg_cpu = resource_data['usage_cpu'].mean()
+
+                            # Avoid division by zero in efficiency calculation
+                            if avg_cpu > 0:
+                                resource_efficiency = avg_users_served / avg_cpu
+                            else:
+                                resource_efficiency = avg_users_served  # Fallback
+
+                            # Calculate cost metrics
+                            estimated_cost = avg_cpu * base_costs.get(resource, 1.0)
+
+                            # Safe cost per user calculation
+                            if avg_users_served > 0:
+                                cost_per_user = estimated_cost / avg_users_served
+                            else:
+                                cost_per_user = estimated_cost  # Fallback
+
+                            # ROI calculation with safety checks
+                            if estimated_cost > 0:
+                                roi = (resource_efficiency * 100) / estimated_cost
+                            else:
+                                roi = resource_efficiency * 100  # Fallback
+
+                            cost_benefit_data.append({
+                                'resource': resource,
+                                'cost': max(0.1, estimated_cost),  # Minimum cost to avoid zero
+                                'benefit': max(0.1, resource_efficiency * 10),  # Scale and minimum
+                                'roi': max(0, roi),
+                                'cost_per_user': cost_per_user,
+                                'users_served': avg_users_served,
+                                'color': color
+                            })
+
+                    if cost_benefit_data:
+                        cb_df = pd.DataFrame(cost_benefit_data)
+
+                        # Cost-benefit scatter plot
+                        fig_cb = go.Figure()
+
+                        for _, row in cb_df.iterrows():
+                            # FIXED: Safe bubble size calculation
+                            bubble_size = max(20, min(60, row['users_served'] / 5 if row['users_served'] > 0 else 20))
+
+                            fig_cb.add_trace(go.Scatter(
+                                x=[row['cost']],
+                                y=[row['benefit']],
+                                mode='markers+text',
+                                marker=dict(
+                                    size=bubble_size,
+                                    color=row['color'],
+                                    opacity=0.7,
+                                    line=dict(width=2, color='white')
+                                ),
+                                name=row['resource'],
+                                text=row['resource'],
+                                textposition='middle center',
+                                textfont=dict(color='white', size=12, family='Arial Black'),
+                                hovertemplate=f"<b>{row['resource']}</b><br>" +
+                                             f"Cost: {row['cost']:.1f}<br>" +
+                                             f"Benefit: {row['benefit']:.1f}<br>" +
+                                             f"ROI: {row['roi']:.1f}%<br>" +
+                                             f"Users: {row['users_served']:.0f}<extra></extra>"
+                            ))
+
+                        # Safe quadrant calculation
+                        max_cost = cb_df['cost'].max() * 1.1 if cb_df['cost'].max() > 0 else 1
+                        max_benefit = cb_df['benefit'].max() * 1.1 if cb_df['benefit'].max() > 0 else 1
+
+                        fig_cb.add_shape(type="rect", x0=0, y0=max_benefit*0.7, x1=max_cost*0.5, y1=max_benefit,
+                                        fillcolor="rgba(39, 174, 96, 0.1)", line=dict(color="rgba(39, 174, 96, 0.3)"))
+                        fig_cb.add_annotation(x=max_cost*0.25, y=max_benefit*0.85, text="High Value<br>(Low Cost, High Benefit)",
+                                            showarrow=False, font=dict(size=10, color="#27ae60"))
+
+                        fig_cb.update_layout(
+                            title="Cost-Benefit Analysis: Resource Value Matrix",
+                            xaxis_title="Relative Cost",
+                            yaxis_title="Relative Benefit",
+                            height=400,
+                            showlegend=False
+                        )
+
+                        st.plotly_chart(fig_cb, width="stretch")
+                    else:
+                        st.warning("No cost-benefit data available")
+
+                except Exception as cb_error:
+                    st.error(f"Error creating cost-benefit analysis: {str(cb_error)}")
+
+            with cb_col2:
+                # ROI ranking
+                st.markdown("**📈 ROI Rankings**")
+
+                try:
+                    if 'cb_df' in locals() and not cb_df.empty:
+                        cb_df_sorted = cb_df.sort_values('roi', ascending=False)
+
+                        for idx, (_, row) in enumerate(cb_df_sorted.iterrows()):
+                            resource = row['resource']
+                            roi = row['roi']
+                            color = row['color']
+
+                            # ROI status
+                            if roi >= 20:
+                                roi_status = "🚀 Excellent"
+                                roi_color = "#27ae60"
+                            elif roi >= 15:
+                                roi_status = "✅ Good"
+                                roi_color = "#2ecc71"
+                            elif roi >= 10:
+                                roi_status = "⚠️ Average"
+                                roi_color = "#f39c12"
+                            else:
+                                roi_status = "❌ Poor"
+                                roi_color = "#e74c3c"
+
+                            rank_emoji = ['🥇', '🥈', '🥉'][min(idx, 2)] if idx < 3 else f"#{idx+1}"
+
+                            st.markdown(f"""
+                            <div style="background: linear-gradient(135deg, {color}15, {color}25);
+                                       padding: 1rem; margin: 0.5rem 0; border-radius: 8px;
+                                       border-left: 4px solid {color};">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center;">
+                                        <span style="font-size: 1.2rem; margin-right: 0.5rem;">{rank_emoji}</span>
+                                        <strong style="color: {color};">{resource}</strong>
+                                    </div>
+                                    <span style="color: {roi_color}; font-weight: bold; font-size: 0.9rem;">{roi_status}</span>
+                                </div>
+                                <hr style="margin: 0.5rem 0; border-color: {color}44;">
+                                <div style="font-size: 0.9rem;">
+                                    <div><strong>ROI: {roi:.1f}%</strong></div>
+                                    <div>Cost/User: {row['cost_per_user']:.2f}</div>
+                                    <div>Users Served: {row['users_served']:.0f}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("No ROI data available")
+
+                except Exception as roi_error:
+                    st.error(f"Error creating ROI rankings: {str(roi_error)}")
+
+        # === OPTIMIZATION RECOMMENDATIONS (ALWAYS SHOWN IF ENABLED) ===
+        if show_optimization:
+            st.divider()
+            st.markdown("### 🎯 Resource Optimization Recommendations")
+
+            try:
+                opt_col1, opt_col2, opt_col3 = st.columns(3)
+
+                # Generate recommendations based on analysis
+                recommendations = []
+
+                for resource in selected_resources:
+                    resource_data = df_filtered[df_filtered['resource_type'] == resource]
+
+                    if not resource_data.empty:
+                        # FIXED: Safe recommendation calculations
+                        avg_cpu = resource_data['usage_cpu'].mean()
+                        max_cpu = resource_data['usage_cpu'].max()
+
+                        # Safe volatility calculation
+                        if len(resource_data) > 1:
+                            volatility = resource_data['usage_cpu'].std()
+                        else:
+                            volatility = 0
+
+                        if max_cpu > 90:
+                            recommendations.append({
+                                'type': '🚨 Critical',
+                                'resource': resource,
+                                'message': f"{resource} approaching capacity limits",
+                                'action': "Consider scaling up or load balancing",
+                                'priority': 'high'
+                            })
+                        elif avg_cpu < 30 and volatility < 10:
+                            recommendations.append({
+                                'type': '💡 Efficiency',
+                                'resource': resource,
+                                'message': f"{resource} is underutilized",
+                                'action': "Consider consolidation or downsizing",
+                                'priority': 'medium'
+                            })
+                        elif volatility > 25:
+                            recommendations.append({
+                                'type': '📊 Stability',
+                                'resource': resource,
+                                'message': f"{resource} shows high variability",
+                                'action': "Implement auto-scaling or load smoothing",
+                                'priority': 'medium'
+                            })
+
+                if not recommendations:
+                    recommendations.append({
+                        'type': '✅ Optimal',
+                        'resource': 'All Resources',
+                        'message': 'Resources are operating within optimal ranges',
+                        'action': 'Continue monitoring for trends',
+                        'priority': 'low'
+                    })
+
+                # Display recommendations in columns
+                rec_cols = [opt_col1, opt_col2, opt_col3]
+                priority_colors = {'high': '#e74c3c', 'medium': '#f39c12', 'low': '#27ae60'}
+
+                for idx, rec in enumerate(recommendations[:3]):  # Show top 3 recommendations
+                    with rec_cols[idx % 3]:
+                        priority_color = priority_colors.get(rec['priority'], '#3498db')
+
+                        st.markdown(f"""
+                        <div style="background: white; padding: 1rem; border-radius: 8px;
+                                   border-left: 4px solid {priority_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                   margin-bottom: 1rem;">
+                            <div style="color: {priority_color}; font-weight: bold; margin-bottom: 0.5rem;">
+                                {rec['type']}
+                            </div>
+                            <div style="font-weight: bold; margin-bottom: 0.3rem;">
+                                {rec['resource']}
+                            </div>
+                            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">
+                                {rec['message']}
+                            </div>
+                            <div style="background: {priority_color}22; padding: 0.5rem; border-radius: 4px;">
+                                <strong>Action:</strong> {rec['action']}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                # Additional recommendations if more than 3
+                if len(recommendations) > 3:
+                    with st.expander(f"📋 View All {len(recommendations)} Recommendations"):
+                        for rec in recommendations[3:]:
+                            priority_color = priority_colors.get(rec['priority'], '#3498db')
+                            st.markdown(f"**{rec['type']}** - {rec['resource']}: {rec['message']} → *{rec['action']}*")
+
+            except Exception as opt_error:
+                st.error(f"Error generating recommendations: {str(opt_error)}")
+
+    except Exception as main_error:
+        st.error(f"❌ Main analysis error: {str(main_error)}")
+        st.info("Please check your data and try again")
+
+
+
+
+
+# ===== TAB 5: CORRECTED CORRELATION & STATISTICAL ANALYSIS =====
 with tab5:
-    st.subheader("🔗 Correlation & External Factor Analysis")
-    
-    # Load correlation data
-    corr_matrix = fetch_api("correlations/matrix")
-    scatter_data = fetch_api("correlations/scatter")
-    bubble_data = fetch_api("correlations/bubble")
-    
-    if corr_matrix:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Correlation Matrix**")
-            df_corr = pd.DataFrame(corr_matrix)
-            
-            # Create pivot table for heatmap
-            corr_pivot = df_corr.pivot(index='row', columns='column', values='correlation')
-            
-            fig = go.Figure(data=go.Heatmap(
-                z=corr_pivot.values,
-                x=corr_pivot.columns,
-                y=corr_pivot.index,
+    st.subheader("🔗 Correlation Analysis & Statistical Insights")
+
+    try:
+        # Load raw data for comprehensive correlation analysis
+        raw_data = fetch_api("data/raw")
+
+        if not raw_data:
+            st.error("❌ Unable to load correlation data")
+            st.stop()
+
+        df_raw = pd.DataFrame(raw_data)
+        df_raw['date'] = pd.to_datetime(df_raw['date'])
+
+        # Data validation for correlation analysis
+        numeric_columns = ['usage_cpu', 'usage_storage', 'users_active', 'economic_index', 'cloud_market_demand']
+        available_columns = [col for col in numeric_columns if col in df_raw.columns]
+
+        if len(available_columns) < 2:
+            st.error("❌ Insufficient numeric columns for correlation analysis")
+            st.stop()
+
+        # Clean data for correlation analysis
+        df_clean = df_raw[available_columns + ['region', 'resource_type', 'date']].dropna()
+
+        # === CORRELATION ANALYSIS CONTROL PANEL (UNIQUE GRID LAYOUT) ===
+        st.markdown("**🔬 Statistical Analysis Configuration:**")
+
+        # Grid layout (different from other tabs' layouts)
+        config_container = st.container()
+
+        with config_container:
+            # Top row - main controls
+            main_col1, main_col2, main_col3, main_col4 = st.columns(4)
+
+            with main_col1:
+                correlation_method = st.selectbox(
+                    "📊 Correlation Method",
+                    options=['pearson', 'spearman', 'kendall'],
+                    format_func=lambda x: {
+                        'pearson': '📈 Pearson (Linear)',
+                        'spearman': '📉 Spearman (Rank)',
+                        'kendall': '🔄 Kendall (Tau)'
+                    }[x],
+                    help="Choose correlation calculation method"
+                )
+
+            with main_col2:
+                analysis_scope = st.selectbox(
+                    "🎯 Analysis Scope",
+                    options=['Overall', 'By Region', 'By Resource', 'Time Series'],
+                    help="Define the scope of correlation analysis"
+                )
+
+            with main_col3:
+                significance_level = st.selectbox(
+                    "📏 Significance Level",
+                    options=[0.05, 0.01, 0.001],
+                    format_func=lambda x: f"α = {x}",
+                    help="Statistical significance threshold"
+                )
+
+            with main_col4:
+                min_correlation = st.slider(
+                    "🎚️ Min Correlation",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.1,
+                    step=0.05,
+                    help="Minimum correlation magnitude to display"
+                )
+
+            # Bottom row - visualization controls
+            viz_col1, viz_col2, viz_col3, viz_col4 = st.columns(4)
+
+            with viz_col1:
+                show_p_values = st.checkbox("📊 Show P-Values", value=True)
+
+            with viz_col2:
+                advanced_stats = st.checkbox("🧮 Advanced Statistics", value=True)
+
+            with viz_col3:
+                interactive_mode = st.checkbox("🎮 Interactive Mode", value=True)
+
+            with viz_col4:
+                export_results = st.checkbox("💾 Export Results", value=False)
+
+        st.divider()
+
+        # Calculate correlations based on scope
+        if analysis_scope == 'Overall':
+            correlation_data = df_clean[available_columns].corr(method=correlation_method)
+            analysis_groups = {'Overall': df_clean}
+        elif analysis_scope == 'By Region':
+            analysis_groups = {region: group for region, group in df_clean.groupby('region')}
+        elif analysis_scope == 'By Resource':
+            analysis_groups = {resource: group for resource, group in df_clean.groupby('resource_type')}
+        elif analysis_scope == 'Time Series':
+            # Monthly aggregation for time series analysis
+            df_clean['month'] = df_clean['date'].dt.to_period('M')
+            analysis_groups = {str(month): group for month, group in df_clean.groupby('month')}
+
+        # === MAIN CORRELATION VISUALIZATION ===
+        if analysis_scope == 'Overall':
+            st.markdown("### 🌡️ Overall Correlation Heatmap")
+
+            # Enhanced correlation heatmap
+            correlation_matrix = df_clean[available_columns].corr(method=correlation_method)
+
+            # Calculate p-values if requested
+            if show_p_values:
+                import scipy.stats as stats
+                p_values = pd.DataFrame(index=correlation_matrix.index, columns=correlation_matrix.columns)
+
+                for i in correlation_matrix.index:
+                    for j in correlation_matrix.columns:
+                        if i != j:
+                            try:
+                                corr, p_val = stats.pearsonr(df_clean[i].dropna(), df_clean[j].dropna())
+                                p_values.loc[i, j] = p_val
+                            except:
+                                p_values.loc[i, j] = 1.0  # No significance if calculation fails
+                        else:
+                            p_values.loc[i, j] = 0.0
+
+                # Create significance mask
+                significance_mask = p_values < significance_level
+
+            # FIXED: Create enhanced heatmap with corrected colorbar properties
+            fig_heatmap = go.Figure()
+
+            # Add correlation heatmap with FIXED colorbar configuration
+            heatmap_trace = go.Heatmap(
+                z=correlation_matrix.values,
+                x=correlation_matrix.columns,
+                y=correlation_matrix.index,
                 colorscale='RdBu',
                 zmid=0,
-                text=corr_pivot.values.round(3),
+                zmin=-1,
+                zmax=1,
+                text=correlation_matrix.values.round(3),
                 texttemplate='%{text}',
-                textfont={"size": 10},
+                textfont={"size": 12, "color": "white"},
                 hoverongaps=False,
-                colorbar=dict(title="Correlation")
-            ))
-            
-            fig.update_layout(
-                title="Feature Correlation Matrix",
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            if scatter_data:
-                st.markdown("**Economic Index vs CPU Usage**")
-                df_scatter = pd.DataFrame(scatter_data)
-                
-                fig = px.scatter(
-                    df_scatter,
-                    x='economic_index_avg',
-                    y='usage_cpu_avg',
-                    color='region',
-                    size='data_points',
-                    title="Economic Index vs CPU Usage by Region",
-                    color_discrete_map={'East US': '#0078d4', 'West US': '#ff6b6b', 'North Europe': '#4ecdc4', 'Southeast Asia': '#95e1d3'}
+                colorbar=dict(
+                    title="Correlation Coefficient",
+                    # REMOVED: titleside (not supported in this Plotly version)
+                    # REPLACED WITH: Standard colorbar properties
+                    x=1.02,  # Position colorbar to the right
+                    xanchor='left',
+                    tickmode="linear",
+                    tick0=-1,
+                    dtick=0.5,
+                    len=0.9  # Length of colorbar
                 )
-                
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
-        
-    # Multi-dimensional bubble chart with meaningful metrics
-    if bubble_data:
-       st.markdown("**Resource Efficiency Analysis - CPU vs Storage per User**")
-       df_bubble = pd.DataFrame(bubble_data)
-    
-       st.write(f"📊 Analyzing {len(df_bubble)} region-resource combinations")
-    
-       fig = px.scatter(
-        df_bubble,
-        x='cpu_efficiency',  # CPU per user
-        y='storage_efficiency',  # Storage per user
-        size='total_utilization',  # Total resource usage
-        color='region',
-        symbol='resource_type',  # Different symbols for VM, Storage, Container
-        hover_data=['usage_cpu', 'usage_storage', 'users_active'],
-        title="Resource Efficiency: CPU/User vs Storage/User (Lower = More Efficient)",
-        labels={
-            'cpu_efficiency': 'CPU per User (Lower = Better)',
-            'storage_efficiency': 'Storage per User (Lower = Better)'
-        },
-        color_discrete_map={
-            'East US': '#0078d4', 
-            'West US': '#ff6b6b', 
-            'North Europe': '#4ecdc4', 
-            'Southeast Asia': '#95e1d3'
-        },
-        size_max=60,
-        opacity=0.8
-    )
-    
-       fig.update_layout(height=600, showlegend=True)
-       st.plotly_chart(fig, use_container_width=True)
-    
-       # Show raw data
-       with st.expander("📋 Efficiency Data"):
-           st.dataframe(df_bubble[['region', 'resource_type', 'cpu_efficiency', 'storage_efficiency', 'total_utilization']])
+            )
+
+            fig_heatmap.add_trace(heatmap_trace)
+
+            # Add significance markers if p-values are shown
+            if show_p_values and 'significance_mask' in locals():
+                for i, row in enumerate(correlation_matrix.index):
+                    for j, col in enumerate(correlation_matrix.columns):
+                        try:
+                            if significance_mask.iloc[i, j] and abs(correlation_matrix.iloc[i, j]) >= min_correlation:
+                                fig_heatmap.add_shape(
+                                    type="rect",
+                                    x0=j-0.4, y0=i-0.4, x1=j+0.4, y1=i+0.4,
+                                    line=dict(color="yellow", width=3),
+                                    fillcolor="rgba(0,0,0,0)"
+                                )
+                        except:
+                            continue  # Skip if significance calculation failed
+
+            fig_heatmap.update_layout(
+                title=f"Correlation Matrix ({correlation_method.title()} Method)",
+                xaxis_title="Variables",
+                yaxis_title="Variables",
+                height=500,
+                font=dict(size=12)
+            )
+
+            st.plotly_chart(fig_heatmap, width="stretch")
+
+            # Correlation insights
+            if advanced_stats:
+                with st.expander("🔍 Correlation Insights"):
+                    insights_col1, insights_col2 = st.columns(2)
+
+                    with insights_col1:
+                        st.markdown("**📈 Strongest Correlations:**")
+
+                        # Find strongest correlations
+                        correlations_list = []
+                        for i in range(len(correlation_matrix.columns)):
+                            for j in range(i+1, len(correlation_matrix.columns)):
+                                var1 = correlation_matrix.columns[i]
+                                var2 = correlation_matrix.columns[j]
+                                corr_val = correlation_matrix.iloc[i, j]
+                                if abs(corr_val) >= min_correlation and not np.isnan(corr_val):
+                                    correlations_list.append({
+                                        'pair': f"{var1} ↔ {var2}",
+                                        'correlation': corr_val,
+                                        'strength': 'Strong' if abs(corr_val) >= 0.7 else 'Moderate' if abs(corr_val) >= 0.3 else 'Weak'
+                                    })
+
+                        # Sort by absolute correlation
+                        correlations_list.sort(key=lambda x: abs(x['correlation']), reverse=True)
+
+                        if correlations_list:
+                            for corr_data in correlations_list[:5]:  # Show top 5
+                                strength_color = {
+                                    'Strong': '#27ae60',
+                                    'Moderate': '#f39c12', 
+                                    'Weak': '#95a5a6'
+                                }[corr_data['strength']]
+
+                                st.markdown(f"""
+                                <div style="background: {strength_color}22; padding: 0.5rem; margin: 0.3rem 0; border-radius: 6px;
+                                           border-left: 3px solid {strength_color};">
+                                    <strong>{corr_data['pair']}</strong><br>
+                                    <span style="color: {strength_color};">
+                                        r = {corr_data['correlation']:.3f} ({corr_data['strength']})
+                                    </span>
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            st.info("No significant correlations found above the minimum threshold")
+
+                    with insights_col2:
+                        st.markdown("**📊 Statistical Summary:**")
+
+                        # Calculate summary statistics
+                        abs_correlations = np.abs(correlation_matrix.values)
+                        # Remove diagonal (self-correlations) and get upper triangle
+                        mask = np.triu(np.ones_like(abs_correlations, dtype=bool), k=1)
+                        abs_correlations = abs_correlations[mask]
+
+                        # Remove NaN values
+                        abs_correlations = abs_correlations[~np.isnan(abs_correlations)]
+
+                        if len(abs_correlations) > 0:
+                            st.metric("🎯 Average Correlation", f"{np.mean(abs_correlations):.3f}")
+                            st.metric("📏 Max Correlation", f"{np.max(abs_correlations):.3f}")
+                            st.metric("📐 Std Deviation", f"{np.std(abs_correlations):.3f}")
+
+                            # Correlation strength distribution
+                            strong_count = sum(1 for c in abs_correlations if c >= 0.7)
+                            moderate_count = sum(1 for c in abs_correlations if 0.3 <= c < 0.7)
+                            weak_count = sum(1 for c in abs_correlations if c < 0.3)
+
+                            st.markdown(f"""
+                            **🔍 Correlation Distribution:**
+                            - 🟢 Strong (≥0.7): {strong_count}
+                            - 🟡 Moderate (0.3-0.7): {moderate_count}  
+                            - ⚪ Weak (<0.3): {weak_count}
+                            """)
+                        else:
+                            st.warning("No valid correlations calculated")
+
+        else:
+            # Multi-group correlation analysis
+            st.markdown(f"### 📊 Correlation Analysis: {analysis_scope}")
+
+            # Create comparison visualization
+            group_correlations = {}
+
+            # Calculate correlations for each group
+            for group_name, group_data in list(analysis_groups.items())[:6]:  # Limit to 6 groups for performance
+                if len(group_data) > 3:  # Need minimum data for correlation
+                    try:
+                        group_corr = group_data[available_columns].corr(method=correlation_method)
+                        # Check if correlation matrix has valid values
+                        if not group_corr.isnull().all().all():
+                            group_correlations[group_name] = group_corr
+                    except:
+                        continue  # Skip groups with calculation issues
+
+            if group_correlations:
+                # Multi-group heatmap comparison
+                n_groups = len(group_correlations)
+                cols_per_row = 2
+                n_rows = (n_groups + cols_per_row - 1) // cols_per_row
+
+                from plotly.subplots import make_subplots
+
+                fig_multi = make_subplots(
+                    rows=n_rows,
+                    cols=cols_per_row,
+                    subplot_titles=list(group_correlations.keys()),
+                    vertical_spacing=0.08,
+                    horizontal_spacing=0.05
+                )
+
+                for idx, (group_name, corr_matrix) in enumerate(group_correlations.items()):
+                    row = (idx // cols_per_row) + 1
+                    col = (idx % cols_per_row) + 1
+
+                    # FIXED: Simplified colorbar configuration for subplots
+                    fig_multi.add_trace(
+                        go.Heatmap(
+                            z=corr_matrix.values,
+                            x=corr_matrix.columns,
+                            y=corr_matrix.index,
+                            colorscale='RdBu',
+                            zmid=0,
+                            zmin=-1,
+                            zmax=1,
+                            showscale=(idx == 0),  # Show colorbar only for first plot
+                            text=corr_matrix.values.round(2),
+                            texttemplate='%{text}',
+                            textfont={"size": 8},
+                            hoverongaps=False
+                        ),
+                        row=row, col=col
+                    )
+
+                fig_multi.update_layout(
+                    title=f"Correlation Comparison: {analysis_scope}",
+                    height=300 * n_rows,
+                    showlegend=False
+                )
+
+                st.plotly_chart(fig_multi, width="stretch")
+            else:
+                st.warning("⚠️ No valid correlation data for selected groups")
+
+        # === INTERACTIVE CORRELATION EXPLORER ===
+        if interactive_mode:
+            st.divider()
+            st.markdown("### 🎮 Interactive Correlation Explorer")
+
+            explorer_col1, explorer_col2 = st.columns([1, 2])
+
+            with explorer_col1:
+                st.markdown("**🎛️ Variable Selection:**")
+
+                var_x = st.selectbox(
+                    "X-Axis Variable",
+                    options=available_columns,
+                    index=0 if available_columns else None
+                )
+
+                var_y = st.selectbox(
+                    "Y-Axis Variable", 
+                    options=available_columns,
+                    index=1 if len(available_columns) > 1 else 0
+                )
+
+                color_by = st.selectbox(
+                    "Color By",
+                    options=['None', 'region', 'resource_type'],
+                    index=1
+                )
+
+                size_by = st.selectbox(
+                    "Size By",
+                    options=['None'] + available_columns,
+                    index=0
+                )
+
+                # Correlation calculation for selected pair
+                if var_x and var_y and var_x != var_y:
+                    try:
+                        correlation_value = df_clean[var_x].corr(df_clean[var_y], method=correlation_method)
+
+                        if not np.isnan(correlation_value):
+                            # Determine correlation strength and color
+                            if abs(correlation_value) >= 0.7:
+                                strength = "Strong"
+                                strength_color = "#27ae60"
+                            elif abs(correlation_value) >= 0.3:
+                                strength = "Moderate"
+                                strength_color = "#f39c12"
+                            else:
+                                strength = "Weak"
+                                strength_color = "#95a5a6"
+
+                            st.markdown(f"""
+                            <div style="background: {strength_color}22; padding: 1rem; border-radius: 8px;
+                                       border-left: 4px solid {strength_color}; text-align: center;">
+                                <h3 style="color: {strength_color}; margin: 0;">{correlation_value:.3f}</h3>
+                                <p style="margin: 0.5rem 0 0 0;">{strength} Correlation</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.warning("⚠️ Cannot calculate correlation for selected variables")
+                    except Exception as corr_error:
+                        st.error(f"Error calculating correlation: {str(corr_error)}")
+
+            with explorer_col2:
+                if var_x and var_y and var_x != var_y:
+                    try:
+                        # Create interactive scatter plot
+                        scatter_fig = go.Figure()
+
+                        if color_by != 'None' and color_by in df_clean.columns:
+                            # Group by color variable
+                            color_map = {
+                                'region': {'East US': '#0078d4', 'West US': '#ff6b6b', 'North Europe': '#4ecdc4', 'Southeast Asia': '#95e1d3'},
+                                'resource_type': {'VM': '#8e44ad', 'Storage': '#e67e22', 'Container': '#27ae60'}
+                            }
+
+                            for group_value in df_clean[color_by].unique():
+                                group_data = df_clean[df_clean[color_by] == group_value]
+
+                                # Calculate size values if specified
+                                if size_by != 'None' and size_by in available_columns:
+                                    sizes = group_data[size_by]
+                                    # Normalize sizes to reasonable range
+                                    size_range = sizes.max() - sizes.min()
+                                    if size_range > 0:
+                                        normalized_sizes = ((sizes - sizes.min()) / size_range * 30) + 10
+                                    else:
+                                        normalized_sizes = [15] * len(sizes)
+                                else:
+                                    normalized_sizes = 8
+
+                                color = color_map.get(color_by, {}).get(group_value, '#3498db')
+
+                                scatter_fig.add_trace(go.Scatter(
+                                    x=group_data[var_x],
+                                    y=group_data[var_y],
+                                    mode='markers',
+                                    name=str(group_value),
+                                    marker=dict(
+                                        color=color,
+                                        size=normalized_sizes,
+                                        opacity=0.7,
+                                        line=dict(width=1, color='white')
+                                    ),
+                                    hovertemplate=f'<b>{group_value}</b><br>' +
+                                                 f'{var_x}: %{{x:.2f}}<br>' +
+                                                 f'{var_y}: %{{y:.2f}}<br>' +
+                                                 (f'{size_by}: %{{marker.size:.1f}}<br>' if size_by != 'None' else '') +
+                                                 '<extra></extra>'
+                                ))
+                        else:
+                            # Single series scatter plot
+                            if size_by != 'None' and size_by in available_columns:
+                                sizes = df_clean[size_by]
+                                size_range = sizes.max() - sizes.min()
+                                if size_range > 0:
+                                    normalized_sizes = ((sizes - sizes.min()) / size_range * 30) + 10
+                                else:
+                                    normalized_sizes = [15] * len(sizes)
+                            else:
+                                normalized_sizes = 8
+
+                            scatter_fig.add_trace(go.Scatter(
+                                x=df_clean[var_x],
+                                y=df_clean[var_y],
+                                mode='markers',
+                                name='Data Points',
+                                marker=dict(
+                                    color='#3498db',
+                                    size=normalized_sizes,
+                                    opacity=0.7
+                                ),
+                                hovertemplate=f'{var_x}: %{{x:.2f}}<br>' +
+                                             f'{var_y}: %{{y:.2f}}<br>' +
+                                             '<extra></extra>'
+                            ))
+
+                        # Add trend line
+                        try:
+                            x_clean = df_clean[var_x].dropna()
+                            y_clean = df_clean[var_y].dropna()
+
+                            # Align the data
+                            common_idx = x_clean.index.intersection(y_clean.index)
+                            x_aligned = x_clean.loc[common_idx]
+                            y_aligned = y_clean.loc[common_idx]
+
+                            if len(x_aligned) > 1:
+                                z = np.polyfit(x_aligned, y_aligned, 1)
+                                p = np.poly1d(z)
+                                x_trend = np.linspace(x_aligned.min(), x_aligned.max(), 100)
+
+                                scatter_fig.add_trace(go.Scatter(
+                                    x=x_trend,
+                                    y=p(x_trend),
+                                    mode='lines',
+                                    name='Trend Line',
+                                    line=dict(color='red', width=2, dash='dash'),
+                                    hovertemplate='Trend Line<extra></extra>'
+                                ))
+                        except:
+                            pass  # Skip trend line if calculation fails
+
+                        scatter_fig.update_layout(
+                            title=f"Interactive Correlation: {var_x} vs {var_y}",
+                            xaxis_title=var_x.replace('_', ' ').title(),
+                            yaxis_title=var_y.replace('_', ' ').title(),
+                            height=400,
+                            showlegend=True,
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                        )
+
+                        st.plotly_chart(scatter_fig, width="stretch")
+
+                    except Exception as scatter_error:
+                        st.error(f"Error creating scatter plot: {str(scatter_error)}")
+
+        # === ADVANCED STATISTICAL ANALYSIS ===
+        if advanced_stats:
+            st.divider()
+            st.markdown("### 📈 Advanced Statistical Analysis")
+
+            # Simplified version to avoid complexity
+            st.markdown("**🧪 Correlation Summary**")
+
+            # Create a simple summary table
+            if 'correlation_matrix' in locals():
+                summary_data = []
+                for i in range(len(correlation_matrix.columns)):
+                    for j in range(i+1, len(correlation_matrix.columns)):
+                        var1 = correlation_matrix.columns[i]
+                        var2 = correlation_matrix.columns[j]
+                        corr_val = correlation_matrix.iloc[i, j]
+
+                        if not np.isnan(corr_val) and abs(corr_val) >= min_correlation:
+                            summary_data.append({
+                                'Variable 1': var1,
+                                'Variable 2': var2,
+                                'Correlation': f"{corr_val:.3f}",
+                                'Strength': 'Strong' if abs(corr_val) >= 0.7 else 'Moderate' if abs(corr_val) >= 0.3 else 'Weak'
+                            })
+
+                if summary_data:
+                    summary_df = pd.DataFrame(summary_data)
+                    st.dataframe(summary_df, width="stretch")
+                else:
+                    st.info("No correlations above the minimum threshold found")
+
+        # === EXPORT RESULTS ===
+        if export_results:
+            st.divider()
+            st.markdown("### 💾 Export Analysis Results")
+
+            if 'correlation_matrix' in locals():
+                csv_data = correlation_matrix.to_csv()
+                st.download_button(
+                    label="📊 Download Correlation Matrix",
+                    data=csv_data,
+                    file_name=f"correlation_matrix_{correlation_method}.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.warning("⚠️ No correlation matrix available for export")
+
+    except Exception as main_error:
+        st.error(f"❌ Main correlation analysis error: {str(main_error)}")
+        st.info("Please check your data and try again")
+
 
 # ===== TAB 6: HOLIDAY EFFECTS =====
+
+# ===== CORRECTED MERGED TAB 6: SEASONAL BEHAVIOR & USER ENGAGEMENT ANALYSIS =====
 with tab6:
-    st.subheader("🎉 Holiday Effects & Seasonal Analysis")
-    
-    # Load holiday data
-    holiday_analysis = fetch_api("holiday/analysis")
-    holiday_distribution = fetch_api("holiday/distribution")
-    calendar_data = fetch_api("holiday/calendar")
-    
-    if holiday_analysis:
-        st.markdown("**Holiday vs Regular Day Analysis**")
-        df_holiday = pd.DataFrame(holiday_analysis)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Show summary metrics
-            st.markdown("**Summary Statistics**")
-            holiday_stats = df_holiday[df_holiday['holiday'] == 1]
-            regular_stats = df_holiday[df_holiday['holiday'] == 0]
-            
-            if not holiday_stats.empty and not regular_stats.empty:
-                st.metric(
-                    "Holiday Avg CPU",
-                    f"{holiday_stats['usage_cpu_mean'].iloc[0]:.1f}%",
-                    delta=f"{holiday_stats['usage_cpu_mean'].iloc[0] - regular_stats['usage_cpu_mean'].iloc[0]:+.1f}% vs regular days"
+    st.subheader("🎄 Seasonal Behavior & User Engagement Intelligence")
+
+    try:
+        # Load raw data for comprehensive seasonal and engagement analysis
+        raw_data = fetch_api("data/raw")
+
+        if not raw_data:
+            st.error("❌ Unable to load seasonal behavior data")
+            st.stop()
+
+        df_raw = pd.DataFrame(raw_data)
+        df_raw['date'] = pd.to_datetime(df_raw['date'])
+
+        # Enhanced date features for seasonal analysis
+        df_raw['day_of_week'] = df_raw['date'].dt.day_name()
+        df_raw['month'] = df_raw['date'].dt.month
+        df_raw['month_name'] = df_raw['date'].dt.month_name()
+        df_raw['day_of_month'] = df_raw['date'].dt.day
+        df_raw['quarter'] = df_raw['date'].dt.quarter
+        df_raw['week_of_year'] = df_raw['date'].dt.isocalendar().week
+
+        # Create holiday indicator (simulated based on weekends and common dates)
+        weekend_mask = df_raw['date'].dt.weekday >= 5  # Saturday=5, Sunday=6
+        month_day_holidays = [
+            (1, 1),   # New Year
+            (7, 4),   # July 4th
+            (12, 25), # Christmas
+            (12, 31)  # New Year's Eve
+        ]
+        holiday_mask = df_raw[['month', 'day_of_month']].apply(
+            lambda x: (x['month'], x['day_of_month']) in month_day_holidays, axis=1
+        )
+        df_raw['is_holiday'] = (weekend_mask | holiday_mask).astype(int)
+
+        # Calculate user engagement metrics
+        df_raw['cpu_per_user'] = df_raw['usage_cpu'] / (df_raw['users_active'] + 1)  # Avoid division by zero
+        df_raw['storage_per_user'] = df_raw['usage_storage'] / (df_raw['users_active'] + 1)
+        df_raw['user_efficiency'] = df_raw['users_active'] / (df_raw['usage_cpu'] + 1) * 100  # Users per CPU unit
+
+        # Clean data
+        df_clean = df_raw.dropna()
+
+        # === BEHAVIORAL ANALYSIS CONTROL CENTER (UNIQUE DASHBOARD DESIGN) ===
+        st.markdown("**🎯 Behavioral Analysis Control Center:**")
+
+        # Three-tier control layout (different from all other tabs)
+        tier1_container = st.container()
+        tier2_container = st.container()
+        tier3_container = st.container()
+
+        with tier1_container:
+            # Tier 1: Primary Analysis Selection
+            primary_col1, primary_col2, primary_col3 = st.columns(3)
+
+            with primary_col1:
+                analysis_focus = st.selectbox(
+                    "🎯 Analysis Focus",
+                    options=['Seasonal Patterns', 'Holiday Effects', 'User Behavior', 'Engagement Efficiency'],
+                    help="Choose the primary behavioral analysis focus"
                 )
-                
-                st.metric(
-                    "Holiday Avg Storage",
-                    f"{holiday_stats['usage_storage_mean'].iloc[0]:.0f} GB",
-                    delta=f"{holiday_stats['usage_storage_mean'].iloc[0] - regular_stats['usage_storage_mean'].iloc[0]:+.0f}GB vs regular days"
+
+            with primary_col2:
+                time_granularity = st.selectbox(
+                    "⏰ Time Granularity",
+                    options=['Daily', 'Weekly', 'Monthly', 'Quarterly'],
+                    index=2,  # Default to Monthly
+                    help="Select temporal analysis granularity"
                 )
-        
-        with col2:
-            if holiday_distribution:
-                st.markdown("**Usage Distribution Comparison**")
-                
-                holiday_data = holiday_distribution.get('holiday_data', [])
-                regular_data = holiday_distribution.get('regular_data', [])
-                
-                if holiday_data and regular_data:
-                    fig = go.Figure()
-                    
-                    # Box plots for comparison
-                    fig.add_trace(go.Box(
-                        y=[d['usage_cpu'] for d in regular_data],
-                        name='Regular Days',
-                        marker_color='#4ecdc4'
+
+            with primary_col3:
+                behavioral_metric = st.selectbox(
+                    "📊 Key Metric",
+                    options=['usage_cpu', 'usage_storage', 'users_active', 'cpu_per_user', 'user_efficiency'],
+                    format_func=lambda x: {
+                        'usage_cpu': '🔥 CPU Usage',
+                        'usage_storage': '💾 Storage Usage',
+                        'users_active': '👥 Active Users',
+                        'cpu_per_user': '⚡ CPU Efficiency',
+                        'user_efficiency': '🎯 User Efficiency'
+                    }[x],
+                    help="Primary metric for behavioral analysis"
+                )
+
+        with tier2_container:
+            # Tier 2: Behavioral Filters
+            filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
+
+            with filter_col1:
+                include_holidays = st.checkbox("🎉 Include Holidays", value=True)
+
+            with filter_col2:
+                include_weekends = st.checkbox("🛌 Include Weekends", value=True)
+
+            with filter_col3:
+                behavior_comparison = st.checkbox("⚖️ Behavior Comparison", value=True)
+
+            with filter_col4:
+                advanced_insights = st.checkbox("🧠 Advanced Insights", value=True)
+
+        with tier3_container:
+            # Tier 3: Visualization Options
+            viz_col1, viz_col2, viz_col3 = st.columns(3)
+
+            with viz_col1:
+                show_annotations = st.toggle("📝 Show Annotations", value=True)
+
+            with viz_col2:
+                interactive_features = st.toggle("🎮 Interactive Features", value=True)
+
+            with viz_col3:
+                export_insights = st.toggle("💾 Export Insights", value=False)
+
+        # Apply filters
+        df_filtered = df_clean.copy()
+
+        if not include_holidays:
+            df_filtered = df_filtered[df_filtered['is_holiday'] == 0]
+
+        if not include_weekends:
+            df_filtered = df_filtered[df_filtered['date'].dt.weekday < 5]  # Monday=0 to Friday=4
+
+        st.divider()
+
+        # === MAIN BEHAVIORAL ANALYSIS SECTIONS ===
+
+        if analysis_focus == 'Seasonal Patterns':
+            st.markdown("### 🌅 Seasonal Pattern Analysis")
+
+            pattern_col1, pattern_col2 = st.columns([2, 1])
+
+            with pattern_col1:
+                # Seasonal trend visualization
+                st.markdown("**📈 Seasonal Trends Dashboard**")
+
+                # Aggregate data based on time granularity
+                if time_granularity == 'Daily':
+                    time_group = df_filtered.groupby(df_filtered['date'].dt.date)[behavioral_metric].mean().reset_index()
+                    time_group.columns = ['period', 'value']
+                elif time_granularity == 'Weekly':
+                    time_group = df_filtered.groupby('week_of_year')[behavioral_metric].mean().reset_index()
+                    time_group.columns = ['period', 'value']
+                elif time_granularity == 'Monthly':
+                    time_group = df_filtered.groupby('month')[behavioral_metric].mean().reset_index()
+                    time_group.columns = ['period', 'value']
+                else:  # Quarterly
+                    time_group = df_filtered.groupby('quarter')[behavioral_metric].mean().reset_index()
+                    time_group.columns = ['period', 'value']
+
+                # Create seasonal pattern chart
+                fig_seasonal = go.Figure()
+
+                # Main trend line
+                fig_seasonal.add_trace(go.Scatter(
+                    x=time_group['period'],
+                    y=time_group['value'],
+                    mode='lines+markers',
+                    name=f'{behavioral_metric.replace("_", " ").title()}',
+                    line=dict(color='#2E86AB', width=4),
+                    marker=dict(size=8, color='#2E86AB'),
+                    fill='tonexty' if time_granularity != 'Daily' else None,
+                    fillcolor='rgba(46, 134, 171, 0.1)'
+                ))
+
+                # Add seasonal average line
+                seasonal_avg = time_group['value'].mean()
+                fig_seasonal.add_hline(
+                    y=seasonal_avg, 
+                    line_dash="dash", 
+                    line_color="orange",
+                    annotation_text=f"Average: {seasonal_avg:.1f}"
+                )
+
+                # Add peak and trough annotations if enabled
+                if show_annotations and len(time_group) > 0:
+                    peak_idx = time_group['value'].idxmax()
+                    trough_idx = time_group['value'].idxmin()
+
+                    fig_seasonal.add_annotation(
+                        x=time_group.iloc[peak_idx]['period'],
+                        y=time_group.iloc[peak_idx]['value'],
+                        text=f"Peak: {time_group.iloc[peak_idx]['value']:.1f}",
+                        showarrow=True,
+                        arrowhead=2,
+                        arrowcolor="green",
+                        bgcolor="lightgreen",
+                        bordercolor="green"
+                    )
+
+                    fig_seasonal.add_annotation(
+                        x=time_group.iloc[trough_idx]['period'],
+                        y=time_group.iloc[trough_idx]['value'],
+                        text=f"Low: {time_group.iloc[trough_idx]['value']:.1f}",
+                        showarrow=True,
+                        arrowhead=2,
+                        arrowcolor="red",
+                        bgcolor="lightcoral",
+                        bordercolor="red"
+                    )
+
+                fig_seasonal.update_layout(
+                    title=f"{time_granularity} {behavioral_metric.replace('_', ' ').title()} Patterns",
+                    xaxis_title=time_granularity,
+                    yaxis_title=behavioral_metric.replace('_', ' ').title(),
+                    height=400,
+                    hovermode='x unified'
+                )
+
+                st.plotly_chart(fig_seasonal, width="stretch")
+
+            with pattern_col2:
+                # Seasonal insights panel
+                st.markdown("**🔍 Seasonal Insights**")
+
+                if len(time_group) > 1:
+                    # Calculate seasonal statistics
+                    seasonal_variance = time_group['value'].var()
+                    seasonal_range = time_group['value'].max() - time_group['value'].min()
+                    seasonal_cv = (time_group['value'].std() / time_group['value'].mean()) * 100 if time_group['value'].mean() > 0 else 0
+
+                    # Pattern classification
+                    if seasonal_cv < 10:
+                        pattern_type = "🟢 Stable"
+                        pattern_color = "#27ae60"
+                    elif seasonal_cv < 25:
+                        pattern_type = "🟡 Moderate Variation"
+                        pattern_color = "#f39c12"
+                    else:
+                        pattern_type = "🔴 High Volatility"
+                        pattern_color = "#e74c3c"
+
+                    st.markdown(f"""
+                    <div style="background: {pattern_color}22; padding: 1rem; border-radius: 8px;
+                               border-left: 4px solid {pattern_color};">
+                        <h4 style="color: {pattern_color}; margin: 0;">Pattern Type</h4>
+                        <h3 style="margin: 0.5rem 0;">{pattern_type}</h3>
+                        <small>Coefficient of Variation: {seasonal_cv:.1f}%</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    st.metric("📊 Seasonal Range", f"{seasonal_range:.1f}")
+                    st.metric("📈 Peak Value", f"{time_group['value'].max():.1f}")
+                    st.metric("📉 Trough Value", f"{time_group['value'].min():.1f}")
+
+                    # Seasonal recommendations
+                    if advanced_insights:
+                        st.markdown("**💡 Recommendations:**")
+
+                        if seasonal_cv > 25:
+                            st.markdown("- Consider implementing adaptive scaling during high volatility periods")
+                            st.markdown("- Monitor resource allocation during peak seasons")
+
+                        peak_period = time_group.iloc[time_group['value'].idxmax()]['period']
+                        st.markdown(f"- Peak demand occurs in period {peak_period}")
+
+                        if seasonal_range > seasonal_avg * 0.5:
+                            st.markdown("- Significant seasonal variation detected - plan capacity accordingly")
+                else:
+                    st.info("Insufficient data for seasonal analysis")
+
+            # Seasonal heatmap
+            if len(df_filtered) > 0:
+                st.markdown("**🗓️ Seasonal Calendar Heatmap**")
+
+                # Create month-day heatmap
+                calendar_pivot = df_filtered.groupby(['month', 'day_of_month'])[behavioral_metric].mean().reset_index()
+
+                if not calendar_pivot.empty:
+                    calendar_matrix = calendar_pivot.pivot(index='day_of_month', columns='month', values=behavioral_metric)
+
+                    fig_calendar = go.Figure(data=go.Heatmap(
+                        z=calendar_matrix.values,
+                        x=['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                        y=calendar_matrix.index,
+                        colorscale='RdYlBu_r',
+                        text=calendar_matrix.values.round(1),
+                        texttemplate='%{text}',
+                        textfont={"size": 8},
+                        hoverongaps=False,
+                        colorbar=dict(
+                            title=behavioral_metric.replace('_', ' ').title(),
+                            x=1.02,
+                            xanchor='left'
+                        )
                     ))
-                    
-                    fig.add_trace(go.Box(
-                        y=[d['usage_cpu'] for d in holiday_data],
-                        name='Holidays',
-                        marker_color='#ff6b6b'
-                    ))
-                    
-                    fig.update_layout(
-                        title="CPU Usage Distribution - Holiday vs Regular",
-                        yaxis_title="CPU Usage (%)",
+
+                    fig_calendar.update_layout(
+                        title=f"Seasonal Calendar - {behavioral_metric.replace('_', ' ').title()} Patterns",
+                        xaxis_title="Month",
+                        yaxis_title="Day of Month",
                         height=400
                     )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
-        
-        # Calendar heatmap
-        if calendar_data:
-            st.markdown("**Calendar Heatmap - Daily Usage Patterns**")
-            df_cal = pd.DataFrame(calendar_data)
-            
-            # Create calendar pivot
-            cal_pivot = df_cal.pivot_table(
-                values='usage_cpu',
-                index='day',
-                columns='month_name',
-                aggfunc='mean'
-            ).fillna(0)
-            
-            fig = go.Figure(data=go.Heatmap(
-                z=cal_pivot.values,
-                x=cal_pivot.columns,
-                y=cal_pivot.index,
-                colorscale='RdYlBu_r',
-                text=cal_pivot.values.round(1),
-                texttemplate='%{text}%',
-                textfont={"size": 8},
-                colorbar=dict(title="CPU Usage %")
-            ))
-            
-            fig.update_layout(
-                title="Daily Usage Calendar - Seasonal Pattern Analysis",
-                xaxis_title="Month",
-                yaxis_title="Day of Month",
-                height=500
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+
+                    st.plotly_chart(fig_calendar, width="stretch")
+
+        elif analysis_focus == 'Holiday Effects':
+            st.markdown("### 🎉 Holiday Effects Analysis")
+
+            holiday_col1, holiday_col2 = st.columns(2)
+
+            with holiday_col1:
+                # Holiday vs Non-Holiday comparison
+                st.markdown("**📊 Holiday vs Regular Day Comparison**")
+
+                holiday_data = df_filtered[df_filtered['is_holiday'] == 1]
+                regular_data = df_filtered[df_filtered['is_holiday'] == 0]
+
+                if not holiday_data.empty and not regular_data.empty:
+                    # Comparative box plots
+                    fig_comparison = go.Figure()
+
+                    fig_comparison.add_trace(go.Box(
+                        y=regular_data[behavioral_metric],
+                        name='Regular Days',
+                        marker_color='#4ecdc4',
+                        boxmean=True
+                    ))
+
+                    fig_comparison.add_trace(go.Box(
+                        y=holiday_data[behavioral_metric],
+                        name='Holidays',
+                        marker_color='#ff6b6b',
+                        boxmean=True
+                    ))
+
+                    fig_comparison.update_layout(
+                        title=f"Holiday Impact on {behavioral_metric.replace('_', ' ').title()}",
+                        yaxis_title=behavioral_metric.replace('_', ' ').title(),
+                        height=400,
+                        showlegend=True
+                    )
+
+                    st.plotly_chart(fig_comparison, width="stretch")
+
+                    # Holiday impact metrics
+                    holiday_avg = holiday_data[behavioral_metric].mean()
+                    regular_avg = regular_data[behavioral_metric].mean()
+                    impact_pct = ((holiday_avg - regular_avg) / regular_avg) * 100 if regular_avg > 0 else 0
+
+                    impact_color = "#27ae60" if impact_pct > 0 else "#e74c3c"
+                    impact_direction = "📈 Increase" if impact_pct > 0 else "📉 Decrease"
+
+                    st.markdown(f"""
+                    <div style="background: {impact_color}22; padding: 1rem; border-radius: 8px;
+                               border-left: 4px solid {impact_color}; text-align: center;">
+                        <h4 style="color: {impact_color}; margin: 0;">Holiday Impact</h4>
+                        <h2 style="margin: 0.5rem 0;">{impact_pct:+.1f}%</h2>
+                        <p style="margin: 0;">{impact_direction} vs Regular Days</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("Insufficient holiday or regular day data for comparison")
+
+            with holiday_col2:
+                # Day of week analysis
+                st.markdown("**📅 Day of Week Behavioral Patterns**")
+
+                dow_analysis = df_filtered.groupby('day_of_week')[behavioral_metric].agg(['mean', 'std']).reset_index()
+
+                if not dow_analysis.empty:
+                    # Reorder days of week
+                    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                    dow_analysis['day_of_week'] = pd.Categorical(dow_analysis['day_of_week'], categories=day_order, ordered=True)
+                    dow_analysis = dow_analysis.sort_values('day_of_week')
+
+                    fig_dow = go.Figure()
+
+                    # Add bar chart with error bars
+                    fig_dow.add_trace(go.Bar(
+                        x=dow_analysis['day_of_week'],
+                        y=dow_analysis['mean'],
+                        error_y=dict(type='data', array=dow_analysis['std']),
+                        marker_color=['#3498db' if day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] 
+                                     else '#e74c3c' for day in dow_analysis['day_of_week']],
+                        hovertemplate='%{x}<br>Mean: %{y:.1f}<br>Std: %{error_y.array:.1f}<extra></extra>'
+                    ))
+
+                    # Add weekend highlighting
+                    fig_dow.add_vrect(
+                        x0=4.5, x1=6.5,
+                        fillcolor="rgba(231, 76, 60, 0.1)",
+                        layer="below",
+                        line_width=0,
+                        annotation_text="Weekend",
+                        annotation_position="top left"
+                    )
+
+                    fig_dow.update_layout(
+                        title=f"Weekly Pattern - {behavioral_metric.replace('_', ' ').title()}",
+                        xaxis_title="Day of Week",
+                        yaxis_title=behavioral_metric.replace('_', ' ').title(),
+                        height=400,
+                        showlegend=False
+                    )
+
+                    st.plotly_chart(fig_dow, width="stretch")
+
+        elif analysis_focus == 'User Behavior':
+            st.markdown("### 👥 User Behavior Intelligence")
+
+            behavior_col1, behavior_col2 = st.columns([3, 1])
+
+            with behavior_col1:
+                # User behavior scatter analysis
+                st.markdown("**🎈 User Behavior Bubble Analysis**")
+
+                # Create behavioral scatter plot
+                fig_behavior = go.Figure()
+
+                # Group by region for different colors
+                region_colors = {'East US': '#0078d4', 'West US': '#ff6b6b', 'North Europe': '#4ecdc4', 'Southeast Asia': '#95e1d3'}
+
+                for region in df_filtered['region'].unique():
+                    region_data = df_filtered[df_filtered['region'] == region]
+
+                    fig_behavior.add_trace(go.Scatter(
+                        x=region_data['users_active'],
+                        y=region_data['usage_cpu'],
+                        mode='markers',
+                        name=region,
+                        marker=dict(
+                            color=region_colors.get(region, '#3498db'),
+                            size=region_data['usage_storage'] / 50,  # Scale bubble size
+                            sizemin=5,
+                            sizemax=30,
+                            opacity=0.7,
+                            line=dict(width=1, color='white')
+                        ),
+                        hovertemplate=f'<b>{region}</b><br>' +
+                                     'Active Users: %{x}<br>' +
+                                     'CPU Usage: %{y:.1f}%<br>' +
+                                     'Storage: %{marker.size*50:.0f}GB<extra></extra>'
+                    ))
+
+                # Add efficiency trend line
+                if len(df_filtered) > 10:
+                    try:
+                        z = np.polyfit(df_filtered['users_active'], df_filtered['usage_cpu'], 1)
+                        p = np.poly1d(z)
+                        x_trend = np.linspace(df_filtered['users_active'].min(), df_filtered['users_active'].max(), 100)
+
+                        fig_behavior.add_trace(go.Scatter(
+                            x=x_trend,
+                            y=p(x_trend),
+                            mode='lines',
+                            name='Efficiency Trend',
+                            line=dict(color='red', width=2, dash='dash'),
+                            hovertemplate='Trend Line<extra></extra>'
+                        ))
+                    except:
+                        pass  # Skip trend line if calculation fails
+
+                fig_behavior.update_layout(
+                    title="User Behavior Analysis (Bubble size = Storage Usage)",
+                    xaxis_title="Active Users",
+                    yaxis_title="CPU Usage (%)",
+                    height=450,
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+
+                st.plotly_chart(fig_behavior, width="stretch")
+
+            with behavior_col2:
+                # User behavior insights
+                st.markdown("**🧠 Behavior Insights**")
+
+                # Calculate user behavior metrics
+                avg_users = df_filtered['users_active'].mean()
+                avg_cpu_per_user = df_filtered['cpu_per_user'].mean()
+                avg_efficiency = df_filtered['user_efficiency'].mean()
+
+                # User classification
+                if avg_cpu_per_user < 2:
+                    user_class = "🟢 Efficient"
+                    class_color = "#27ae60"
+                elif avg_cpu_per_user < 5:
+                    user_class = "🟡 Moderate"
+                    class_color = "#f39c12"
+                else:
+                    user_class = "🔴 Resource Intensive"
+                    class_color = "#e74c3c"
+
+                st.markdown(f"""
+                <div style="background: {class_color}22; padding: 1rem; border-radius: 8px;
+                           border-left: 4px solid {class_color};">
+                    <h4 style="color: {class_color}; margin: 0;">User Classification</h4>
+                    <h3 style="margin: 0.5rem 0;">{user_class}</h3>
+                    <small>Based on CPU usage per user</small>
+                </div>
+                """, unsafe_allow_html=True)
+
+                st.metric("👥 Avg Active Users", f"{avg_users:.0f}")
+                st.metric("⚡ CPU per User", f"{avg_cpu_per_user:.1f}%")
+                st.metric("🎯 User Efficiency", f"{avg_efficiency:.1f}")
+
+                # Behavior recommendations
+                if advanced_insights:
+                    st.markdown("**💡 Behavior Insights:**")
+
+                    if not df_filtered.empty:
+                        # Peak usage analysis
+                        peak_usage = df_filtered.loc[df_filtered['usage_cpu'].idxmax()]
+                        st.markdown(f"- Peak usage: {peak_usage['users_active']:.0f} users on {peak_usage['date'].strftime('%Y-%m-%d')}")
+
+                        # Efficiency trends
+                        correlation = df_filtered['users_active'].corr(df_filtered['usage_cpu'])
+                        if correlation > 0.7:
+                            st.markdown("- Strong positive correlation: More users = Higher CPU usage")
+                        elif correlation < -0.3:
+                            st.markdown("- Negative correlation: System becomes more efficient with more users")
+                        else:
+                            st.markdown("- Moderate correlation: User count has mixed impact on resources")
+
+        elif analysis_focus == 'Engagement Efficiency':
+            st.markdown("### 🎯 Engagement Efficiency Analysis")
+
+            efficiency_col1, efficiency_col2 = st.columns(2)
+
+            with efficiency_col1:
+                # Efficiency heatmap by region and resource
+                st.markdown("**🔥 Regional Efficiency Heatmap**")
+
+                efficiency_pivot = df_filtered.groupby(['region', 'resource_type'])['user_efficiency'].mean().reset_index()
+
+                if not efficiency_pivot.empty:
+                    efficiency_matrix = efficiency_pivot.pivot(index='region', columns='resource_type', values='user_efficiency')
+
+                    fig_efficiency_heatmap = go.Figure(data=go.Heatmap(
+                        z=efficiency_matrix.values,
+                        x=efficiency_matrix.columns,
+                        y=efficiency_matrix.index,
+                        colorscale='RdYlGn',
+                        text=efficiency_matrix.values.round(1),
+                        texttemplate='%{text}',
+                        textfont={"size": 12},
+                        hoverongaps=False,
+                        colorbar=dict(
+                            title="Efficiency Score",
+                            x=1.02,
+                            xanchor='left'
+                        )
+                    ))
+
+                    fig_efficiency_heatmap.update_layout(
+                        title="User Engagement Efficiency by Region & Resource",
+                        xaxis_title="Resource Type",
+                        yaxis_title="Region",
+                        height=400
+                    )
+
+                    st.plotly_chart(fig_efficiency_heatmap, width="stretch")
+                else:
+                    st.info("Insufficient data for efficiency heatmap")
+
+            with efficiency_col2:
+                # Efficiency distribution analysis
+                st.markdown("**📊 Efficiency Distribution**")
+
+                fig_efficiency_dist = go.Figure()
+
+                # Create violin plot for efficiency distribution
+                for resource in df_filtered['resource_type'].unique():
+                    resource_data = df_filtered[df_filtered['resource_type'] == resource]
+
+                    fig_efficiency_dist.add_trace(go.Violin(
+                        y=resource_data['user_efficiency'],
+                        name=resource,
+                        box_visible=True,
+                        meanline_visible=True
+                    ))
+
+                fig_efficiency_dist.update_layout(
+                    title="Efficiency Distribution by Resource Type",
+                    yaxis_title="User Efficiency Score",
+                    height=400,
+                    showlegend=True
+                )
+
+                st.plotly_chart(fig_efficiency_dist, width="stretch")
+
+        # === BEHAVIORAL INTELLIGENCE SUMMARY ===
+        if advanced_insights:
+            st.divider()
+            st.markdown("### 🧠 Behavioral Intelligence Summary")
+
+            intel_col1, intel_col2, intel_col3 = st.columns(3)
+
+            with intel_col1:
+                st.markdown("**🔍 Key Findings**")
+
+                # Generate key insights
+                insights = []
+
+                # Seasonal insight
+                if len(df_filtered) > 12:  # Need sufficient data for seasonal analysis
+                    seasonal_var = df_filtered.groupby('month')[behavioral_metric].mean().var()
+                    if seasonal_var > df_filtered[behavioral_metric].var() * 0.5:
+                        insights.append("📅 Strong seasonal patterns detected")
+
+                # Holiday insight
+                holiday_data = df_filtered[df_filtered['is_holiday'] == 1]
+                regular_data = df_filtered[df_filtered['is_holiday'] == 0]
+
+                if not holiday_data.empty and not regular_data.empty:
+                    holiday_avg = holiday_data[behavioral_metric].mean()
+                    regular_avg = regular_data[behavioral_metric].mean()
+                    holiday_impact = abs((holiday_avg - regular_avg) / regular_avg * 100) if regular_avg > 0 else 0
+                    if holiday_impact > 15:
+                        insights.append("🎉 Significant holiday effects observed")
+
+                # User behavior insight
+                user_cpu_corr = df_filtered['users_active'].corr(df_filtered['usage_cpu'])
+                if user_cpu_corr > 0.7:
+                    insights.append("👥 Strong user-resource correlation")
+
+                for insight in insights[:5]:  # Show top 5 insights
+                    st.markdown(f"- {insight}")
+
+                if not insights:
+                    st.info("No significant behavioral patterns detected")
+
+            with intel_col2:
+                st.markdown("**📊 Behavioral Metrics**")
+
+                # Key behavioral metrics
+                behavioral_consistency = 100 - (df_filtered[behavioral_metric].std() / df_filtered[behavioral_metric].mean() * 100) if df_filtered[behavioral_metric].mean() > 0 else 0
+                user_predictability = 100 - (df_filtered['users_active'].std() / df_filtered['users_active'].mean() * 100) if df_filtered['users_active'].mean() > 0 else 0
+                peak_to_trough = df_filtered[behavioral_metric].max() / df_filtered[behavioral_metric].min() if df_filtered[behavioral_metric].min() > 0 else 0
+
+                st.metric("🎯 Behavioral Consistency", f"{behavioral_consistency:.1f}%")
+                st.metric("👥 User Predictability", f"{user_predictability:.1f}%")
+                st.metric("📈 Peak-to-Trough Ratio", f"{peak_to_trough:.1f}x")
+
+            with intel_col3:
+                st.markdown("**🎯 Action Items**")
+
+                # Generate action items based on analysis
+                actions = []
+
+                if behavioral_consistency < 70:
+                    actions.append("📊 Implement behavioral monitoring")
+
+                if user_predictability < 60:
+                    actions.append("👥 Analyze user engagement patterns")
+
+                if peak_to_trough > 3:
+                    actions.append("⚖️ Consider load balancing strategies")
+
+                # Always include these general actions
+                actions.extend([
+                    "📈 Continue monitoring seasonal trends",
+                    "🎉 Plan for holiday capacity changes"
+                ])
+
+                for action in actions[:5]:  # Show top 5 actions
+                    st.markdown(f"- {action}")
+
+        # === EXPORT FUNCTIONALITY ===
+        if export_insights:
+            st.divider()
+            st.markdown("### 💾 Export Behavioral Analysis")
+
+            export_col1, export_col2 = st.columns(2)
+
+            with export_col1:
+                # Export seasonal data
+                if st.button("📅 Export Seasonal Analysis"):
+                    seasonal_export = df_filtered.groupby(['month', 'day_of_week']).agg({
+                        behavioral_metric: ['mean', 'std', 'min', 'max'],
+                        'users_active': 'mean',
+                        'is_holiday': 'sum'
+                    }).round(2)
+
+                    seasonal_export.columns = ['_'.join(col).strip() for col in seasonal_export.columns]
+                    csv_data = seasonal_export.to_csv()
+
+                    st.download_button(
+                        label="⬇️ Download Seasonal Data",
+                        data=csv_data,
+                        file_name=f"seasonal_analysis_{analysis_focus.lower().replace(' ', '_')}.csv",
+                        mime="text/csv"
+                    )
+
+            with export_col2:
+                # Export behavioral insights
+                if st.button("🧠 Export Behavioral Insights"):
+                    insights_export = {
+                        'analysis_focus': analysis_focus,
+                        'time_granularity': time_granularity,
+                        'behavioral_metric': behavioral_metric,
+                        'total_records': len(df_filtered),
+                        'date_range': f"{df_filtered['date'].min()} to {df_filtered['date'].max()}",
+                        'avg_metric_value': df_filtered[behavioral_metric].mean(),
+                        'metric_volatility': df_filtered[behavioral_metric].std(),
+                        'user_efficiency': df_filtered['user_efficiency'].mean(),
+                        'holiday_impact': 'N/A'  # Would be calculated based on analysis
+                    }
+
+                    insights_json = pd.DataFrame([insights_export]).to_json(orient='records', indent=2)
+
+                    st.download_button(
+                        label="⬇️ Download Insights Summary",
+                        data=insights_json,
+                        file_name=f"behavioral_insights_{analysis_focus.lower().replace(' ', '_')}.json",
+                        mime="application/json"
+                    )
+
+    except Exception as main_error:
+        st.error(f"❌ Behavioral analysis error: {str(main_error)}")
+        st.info("Please check your data and try again")
+
 
 #-------------------------------------------i have edited down code -------------------------------------------------
 
@@ -1934,107 +3729,6 @@ with tab7:
 
 
 #-------------------------------------------i have edited up code-------------------------------------------------
-
-
-# ===== TAB 8: USER ENGAGEMENT =====
-with tab8:
-    st.subheader("👥 User Engagement & Resource Efficiency")
-    
-    # Load engagement data
-    engagement_efficiency = fetch_api("engagement/efficiency")
-    engagement_trends = fetch_api("engagement/trends")
-    engagement_bubble = fetch_api("engagement/bubble")
-    
-    if engagement_efficiency:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Resource Efficiency Matrix**")
-            df_eff = pd.DataFrame(engagement_efficiency)
-            
-            # Create efficiency heatmap
-            eff_pivot = df_eff.pivot_table(
-                values='overall_efficiency',
-                index='region',
-                columns='resource_type',
-                aggfunc='mean'
-            )
-            
-            fig = go.Figure(data=go.Heatmap(
-                z=eff_pivot.values,
-                x=eff_pivot.columns,
-                y=eff_pivot.index,
-                colorscale='Greens',
-                text=eff_pivot.values.round(2),
-                texttemplate='%{text}',
-                textfont={"size": 12},
-                colorbar=dict(title="Efficiency Score")
-            ))
-            
-            fig.update_layout(
-                title="User Engagement Efficiency by Region & Resource",
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            if engagement_bubble:
-                st.markdown("**User Engagement Bubble Chart**")
-                df_bubble = pd.DataFrame(engagement_bubble)
-                
-                fig = px.scatter(
-                    df_bubble,
-                    x='users_active',
-                    y='usage_cpu',
-                    size='usage_storage',
-                    color='region',
-                    hover_data=['resource_type'],
-                    title="Users vs CPU Usage (Bubble size = Storage)",
-                    color_discrete_map={'East US': '#0078d4', 'West US': '#ff6b6b', 'North Europe': '#4ecdc4', 'Southeast Asia': '#95e1d3'}
-                )
-                
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
-        
-        # Efficiency trends over time
-        if engagement_trends:
-            st.markdown("**Efficiency Trends Over Time**")
-            df_trends = pd.DataFrame(engagement_trends)
-            df_trends['date'] = pd.to_datetime(df_trends['date'])
-            
-            fig = go.Figure()
-            
-            # CPU per user trend
-            fig.add_trace(go.Scatter(
-                x=df_trends['date'],
-                y=df_trends['cpu_per_user'],
-                mode='lines+markers',
-                name='CPU per User (%/user)',
-                line=dict(color='#0078d4', width=3),
-                yaxis='y'
-            ))
-            
-            # Storage per user trend (secondary axis)
-            fig.add_trace(go.Scatter(
-                x=df_trends['date'],
-                y=df_trends['storage_per_user'],
-                mode='lines+markers',
-                name='Storage per User (GB/user)',
-                line=dict(color='#ff6b6b', width=3),
-                yaxis='y2'
-            ))
-            
-            fig.update_layout(
-                title="Resource Efficiency Trends - Usage per Active User",
-                xaxis_title="Date",
-                yaxis=dict(title="CPU per User (%/user)", side="left"),
-                yaxis2=dict(title="Storage per User (GB/user)", side="right", overlaying="y"),
-                hovermode='x unified',
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
 
 # Footer
 st.markdown("---")
