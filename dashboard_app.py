@@ -8,6 +8,8 @@ import numpy as np
 from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
+import time  # <-- ADD THIS LINE TO FIX THE ERROR
+
 
 # Page Configuration
 st.set_page_config(
@@ -176,7 +178,7 @@ with st.sidebar:
         end_date = None
 
 # Tab Navigation
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 ,tab8= st.tabs([
     "📊 Overview",
     "📈 Trends", 
     "🌍 Regional",
@@ -184,6 +186,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🔗 Correlations",
     "🎉 User Engagement",
     "🤖 Forecasting",
+    "🤖 Automated Model Training"
 ])
 
 # ===== TAB 1: OVERVIEW & KPIs =====
@@ -3519,215 +3522,1008 @@ with tab6:
 #-------------------------------------------i have edited down code -------------------------------------------------
 
 # ===== TAB 7: ML FORECASTING (ENHANCED IMPLEMENTATION) =====
+# ===== TAB 7: ENHANCED ML FORECASTING (DUAL-METRIC IMPLEMENTATION) =====
 with tab7:
-    st.subheader("🔮 Machine Learning Forecasting")
-
-    # Load model information
-    model_info = fetch_api("forecast/models")
-
-    if model_info:
-        col1, col2 = st.columns([2, 1])
-
-        with col2:
-            st.markdown("### 🎯 Model Status")
-
-            # Display model status for each region
-            for region, info in model_info['models'].items():
-                status_color = "#28a745" if info['loaded'] else "#dc3545"
-                status_text = "✅ Loaded" if info['loaded'] else "❌ Not Loaded"
-
+    st.markdown("# 🔮 Machine Learning Forecasting Dashboard")
+    
+    cpu_tab, users_tab = st.tabs(["🖥️ CPU Usage Forecasting", "👥 Active Users Forecasting"])
+    
+    # ------------------------------------------------------------------
+    # Enhanced Helper Function for Forecasting UI
+    # ------------------------------------------------------------------
+    def enhanced_forecast_ui(metric_name: str,
+                           model_ep: str,
+                           predict_ep: str,
+                           pred_key: str,
+                           yaxis_title: str,
+                           unit_symbol: str = ""):
+        
+        # --- LOAD MODEL STATUS ----------------------------------------
+        model_info = fetch_api(model_ep)
+        if not model_info:
+            st.error("⚠️ Unable to load model information.")
+            return
+        
+        # --- COMPACT HORIZONTAL MODEL STATUS ----------------------
+        st.markdown("### 🎯 Model Status & Settings")
+        
+        # Create horizontal model status display
+        status_cols = st.columns(4)
+        regions = list(model_info['models'].keys())
+        
+        for i, (region, info) in enumerate(model_info['models'].items()):
+            with status_cols[i]:
+                status = "✅" if info['loaded'] else "❌"
+                color = "#d4edda" if info['loaded'] else "#f8d7da"
                 st.markdown(f"""
-                     <div style="
-                     background-color: #f0f4f8; /* Light blue-gray for contrast */
-                     padding: 1rem; 
-                     border-radius: 5px; 
-                     margin: 0.5rem 0;
-                     color: #333333; /* Dark text for readability */
-                     box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* subtle shadow for depth */
-                   ">
-                    <strong>{region}</strong><br>
-                    Model: {info['model_type']}<br>
-                    Status: <span style="color: {status_color}; font-weight: bold;">{status_text}</span>
+                    <div style="background-color:{color}; padding:10px; border-radius:8px; 
+                                text-align:center; border:1px solid #{'c3e6cb' if info['loaded'] else '#f5c6cb'}">
+                        <strong>{region}</strong><br>
+                        {info['model_type']} {status}
                     </div>
                 """, unsafe_allow_html=True)
-
-            # Forecasting controls
-            st.markdown("### ⚙️ Forecast Settings")
-            forecast_days = st.slider("Forecast Horizon (days)", 7, 90, 30)
-            selected_region = st.selectbox("Focus Region", ["All Regions"] + list(model_info['models'].keys()))
-
-            if st.button("🚀 Generate Forecasts", type="primary"):
-                st.session_state.generate_forecast = True
-
-        with col1:
-            st.markdown("### 📈 Forecast Results")
-
-            # Generate forecasts if button clicked
-            if hasattr(st.session_state, 'generate_forecast') and st.session_state.generate_forecast:
-                with st.spinner("Generating forecasts..."):
-                    params = {'days': forecast_days}
-                    if selected_region != "All Regions":
-                        params['region'] = selected_region
-
-                    forecast_data = fetch_api("forecast/predict", params=params)
-
-                    if forecast_data:
-                        # Create forecast visualization
-                        fig = go.Figure()
-
-                        for region, data in forecast_data.items():
-                            if 'error' in data:
-                                st.error(f"{region}: {data['error']}")
-                                continue
-
-                            # Plot historical data
-                            if 'historical' in data:
-                                hist = data['historical']
-                                fig.add_trace(go.Scatter(
-                                    x=hist['dates'],
-                                    y=hist['actual_cpu'],
-                                    mode='lines',
-                                    name=f'{region} - Historical',
-                                    line=dict(color='blue', width=2),
-                                    hovertemplate=f'<b>{region} - Historical</b><br>Date: %{{x}}<br>CPU Usage: %{{y:.1f}}%<extra></extra>'
-                                ))
-
-                            # Plot forecast
-                            fig.add_trace(go.Scatter(
-                                x=data['dates'],
-                                y=data['predicted_cpu'],
-                                mode='lines+markers',
-                                name=f'{region} - Forecast ({data["model_info"]["type"]})',
-                                line=dict(dash='dash', width=2),
-                                marker=dict(size=4),
-                                hovertemplate=f'<b>{region} - Forecast</b><br>Date: %{{x}}<br>Predicted CPU: %{{y:.1f}}%<br>Model: {data["model_info"]["type"]}<extra></extra>'
+        
+        # --- FORECAST SETTINGS IN HORIZONTAL LAYOUT ---------------
+        st.markdown("---")
+        settings_cols = st.columns([2, 2, 1])
+        
+        with settings_cols[0]:
+            days = st.slider("📅 Forecast Horizon (days)", 7, 90, 30, 
+                           key=f"{metric_name}_days")
+        
+        with settings_cols[1]:
+            region_filter = st.selectbox("🌍 Focus Region",
+                                       ["All Regions"] + regions,
+                                       key=f"{metric_name}_region")
+        
+        with settings_cols[2]:
+            st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+            generate_btn = st.button("🚀 Generate", key=f"{metric_name}_btn", 
+                                    type="primary", use_container_width=True)
+        
+        if generate_btn:
+            st.session_state[f"gen_{metric_name}"] = True
+        
+        # --- MAIN FORECASTING RESULTS ---------------------------------
+        if st.session_state.get(f"gen_{metric_name}", False):
+            with st.spinner("🔄 Generating forecasts..."):
+                params = {'days': days}
+                if region_filter != "All Regions":
+                    params['region'] = region_filter
+                data = fetch_api(predict_ep, params=params)
+            
+            if not data:
+                st.error("❌ Forecast generation failed.")
+                st.session_state[f"gen_{metric_name}"] = False
+                return
+            
+            # --- CREATE INDIVIDUAL REGION CHARTS -------------------
+            st.markdown("### 📊 Individual Region Forecasts")
+            
+            # Create 2x2 grid for individual region charts
+            row1_cols = st.columns(2)
+            row2_cols = st.columns(2)
+            chart_cols = [row1_cols[0], row1_cols[1], row2_cols[0], row2_cols[1]]
+            
+            valid_regions = []
+            all_forecast_data = {}
+            
+            for idx, (reg, d) in enumerate(data.items()):
+                if 'error' in d:
+                    st.error(f"❌ {reg}: {d['error']}")
+                    continue
+                
+                valid_regions.append(reg)
+                all_forecast_data[reg] = d
+                
+                if idx < 4:  # Only show first 4 regions in grid
+                    with chart_cols[idx]:
+                        # Individual region chart with min/max shading
+                        fig_individual = go.Figure()
+                        
+                        # Historical data
+                        if 'historical' in d:
+                            h = d['historical']
+                            hist_y = h.get('actual_cpu') or h.get('actual_users')
+                            fig_individual.add_trace(go.Scatter(
+                                x=h['dates'], y=hist_y,
+                                mode='lines',
+                                name="Historical",
+                                line=dict(color='#2E86C1', width=2),
+                                fill=None
                             ))
-
-                        fig.update_layout(
-                            title="Azure CPU Usage Forecast - ML Predictions",
+                        
+                        # Forecast data
+                        forecast_values = np.array(d[pred_key])
+                        forecast_dates = d['dates']
+                        
+                        # Calculate confidence intervals (using ±10% as example)
+                        forecast_upper = forecast_values * 1.1
+                        forecast_lower = forecast_values * 0.9
+                        
+                        # Add shaded area for forecast range
+                        fig_individual.add_trace(go.Scatter(
+                            x=forecast_dates + forecast_dates[::-1],
+                            y=list(forecast_upper) + list(forecast_lower[::-1]),
+                            fill='toself',
+                            fillcolor='rgba(255, 182, 193, 0.3)',
+                            line=dict(color='rgba(255,255,255,0)'),
+                            name='Forecast Range',
+                            showlegend=False
+                        ))
+                        
+                        # Main forecast line
+                        fig_individual.add_trace(go.Scatter(
+                            x=forecast_dates,
+                            y=forecast_values,
+                            mode='lines+markers',
+                            name=f"Forecast ({d['model_info']['type']})",
+                            line=dict(color='#E74C3C', width=2, dash='dash'),
+                            marker=dict(size=4)
+                        ))
+                        
+                        fig_individual.update_layout(
+                            title=f"📈 {reg}",
                             xaxis_title="Date",
-                            yaxis_title="CPU Usage (%)",
-                            height=600,
-                            hovermode='x unified',
-                            showlegend=True,
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                            yaxis_title=yaxis_title,
+                            height=300,
+                            showlegend=False,
+                            margin=dict(l=40, r=40, t=50, b=40)
                         )
-
-                        st.plotly_chart(fig, use_container_width=True)
-
-                        # Display forecast summary
-                        st.markdown("### 📋 Forecast Summary")
-
-                        summary_data = []
-                        for region, data in forecast_data.items():
-                            if 'predicted_cpu' in data:
-                                avg_forecast = np.mean(data['predicted_cpu'])
-                                max_forecast = np.max(data['predicted_cpu'])
-                                min_forecast = np.min(data['predicted_cpu'])
-                                model_type = data['model_info']['type']
-
-                                summary_data.append({
-                                    'Region': region,
-                                    'Model': model_type,
-                                    'Avg Predicted CPU': f"{avg_forecast:.1f}%",
-                                    'Max Predicted CPU': f"{max_forecast:.1f}%",
-                                    'Min Predicted CPU': f"{min_forecast:.1f}%",
-                                    'Forecast Period': f"{forecast_days} days"
-                                })
-
-                        if summary_data:
-                            summary_df = pd.DataFrame(summary_data)
-                            st.dataframe(summary_df, use_container_width=True)
-
-                        # Reset the session state
-                        st.session_state.generate_forecast = False
-
-                    else:
-                        st.error("Failed to generate forecasts. Please check the API connection.")
-
-        # Model Performance Comparison
-        st.markdown("### 🏆 Model Performance Comparison")
-
-        comparison_data = fetch_api("forecast/comparison")
-        if comparison_data:
-            performance = comparison_data['regional_performance']
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # RMSE comparison
-                regions = list(performance.keys())
-                rmse_values = [performance[region]['rmse'] for region in regions]
-                models = [performance[region]['model'] for region in regions]
-
-                fig_rmse = go.Figure(data=[
-                    go.Bar(
-                        x=regions,
+                        
+                        st.plotly_chart(fig_individual, use_container_width=True)
+            
+            # --- COMBINED VIEW CHART ----------------------------------
+            st.markdown("### 🌍 Combined Regional Forecast View")
+            
+            fig_combined = go.Figure()
+            colors = ['#3498DB', '#E74C3C', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C']
+            
+            for idx, (reg, d) in enumerate(all_forecast_data.items()):
+                color = colors[idx % len(colors)]
+                
+                # Historical data
+                if 'historical' in d:
+                    h = d['historical']
+                    hist_y = h.get('actual_cpu') or h.get('actual_users')
+                    fig_combined.add_trace(go.Scatter(
+                        x=h['dates'], y=hist_y,
+                        mode='lines',
+                        name=f"{reg} - Historical",
+                        line=dict(color=color, width=2),
+                        opacity=0.7
+                    ))
+                
+                # Forecast data
+                fig_combined.add_trace(go.Scatter(
+                    x=d['dates'],
+                    y=d[pred_key],
+                    mode='lines+markers',
+                    name=f"{reg} - Forecast ({d['model_info']['type']})",
+                    line=dict(color=color, width=3, dash='dash'),
+                    marker=dict(size=5, symbol='diamond')
+                ))
+            
+            fig_combined.update_layout(
+                title=f"🌐 All Regions - {metric_name} Forecast Comparison",
+                xaxis_title="📅 Date",
+                yaxis_title=yaxis_title,
+                height=500,
+                hovermode='x unified',
+                legend=dict(
+                    orientation="v",
+                    yanchor="top",
+                    y=1,
+                    xanchor="left",
+                    x=1.05
+                )
+            )
+            
+            st.plotly_chart(fig_combined, use_container_width=True)
+            
+            # --- MODEL PERFORMANCE BAR CHART -------------------------
+            st.markdown("### 📊 Model Performance Analysis")
+            
+            perf_col1, perf_col2 = st.columns([2, 1])
+            
+            with perf_col1:
+                # Fetch model comparison data
+                comparison_ep = "forecast/comparison" if metric_name == "CPU Usage" else "forecast/users/comparison"
+                perf_data = fetch_api(comparison_ep)
+                
+                if perf_data:
+                    # Create performance bar chart
+                    regions_perf = list(perf_data['regional_performance'].keys())
+                    rmse_values = [perf_data['regional_performance'][r]['rmse'] for r in regions_perf]
+                    mae_values = [perf_data['regional_performance'][r]['mae'] for r in regions_perf]
+                    models_used = [perf_data['regional_performance'][r]['model'] for r in regions_perf]
+                    
+                    fig_perf = go.Figure()
+                    
+                    fig_perf.add_trace(go.Bar(
+                        name='RMSE',
+                        x=regions_perf,
                         y=rmse_values,
-                        text=[f"{m}<br>RMSE: {r:.2f}" for m, r in zip(models, rmse_values)],
-                        textposition='auto',
-                        marker_color=['#ff6b6b' if m == 'ARIMA' else '#4ecdc4' for m in models]
-                    )
-                ])
-                fig_rmse.update_layout(
-                    title="Model Performance - RMSE by Region",
-                    xaxis_title="Region",
-                    yaxis_title="RMSE",
-                    height=400
-                )
-                st.plotly_chart(fig_rmse, use_container_width=True)
-
-            with col2:
-                # MAE comparison
-                mae_values = [performance[region]['mae'] for region in regions]
-
-                fig_mae = go.Figure(data=[
-                    go.Bar(
-                        x=regions,
+                        yaxis='y',
+                        offsetgroup=1,
+                        marker_color='#E74C3C',
+                        text=[f"{v:.1f}" for v in rmse_values],
+                        textposition='auto'
+                    ))
+                    
+                    fig_perf.add_trace(go.Bar(
+                        name='MAE',
+                        x=regions_perf,
                         y=mae_values,
-                        text=[f"{m}<br>MAE: {r:.2f}" for m, r in zip(models, mae_values)],
-                        textposition='auto',
-                        marker_color=['#ff6b6b' if m == 'ARIMA' else '#4ecdc4' for m in models]
+                        yaxis='y2',
+                        offsetgroup=2,
+                        marker_color='#3498DB',
+                        text=[f"{v:.1f}" for v in mae_values],
+                        textposition='auto'
+                    ))
+                    
+                    fig_perf.update_layout(
+                        title='🎯 Model Accuracy by Region',
+                        xaxis=dict(title='Regions'),
+                        yaxis=dict(title='RMSE', side='left', color='#E74C3C'),
+                        yaxis2=dict(title='MAE', side='right', overlaying='y', color='#3498DB'),
+                        height=400,
+                        barmode='group'
                     )
-                ])
-                fig_mae.update_layout(
-                    title="Model Performance - MAE by Region",
-                    xaxis_title="Region", 
-                    yaxis_title="MAE",
+                    
+                    st.plotly_chart(fig_perf, use_container_width=True)
+            
+            with perf_col2:
+                # Model distribution pie chart
+                if perf_data:
+                    model_counts = {}
+                    for model in models_used:
+                        model_counts[model] = model_counts.get(model, 0) + 1
+                    
+                    fig_pie = go.Figure(data=[go.Pie(
+                        labels=list(model_counts.keys()),
+                        values=list(model_counts.values()),
+                        hole=0.4,
+                        marker_colors=['#FF6B6B', '#4ECDC4', '#45B7D1']
+                    )])
+                    
+                    fig_pie.update_layout(
+                        title="🧠 Model Distribution",
+                        height=400,
+                        showlegend=True
+                    )
+                    
+                    st.plotly_chart(fig_pie, use_container_width=True)
+            
+            # --- FORECAST SUMMARY TABLE -------------------------------
+            st.markdown("### 📋 Detailed Forecast Summary")
+            
+            summary_rows = []
+            for reg, d in all_forecast_data.items():
+                if pred_key in d:
+                    vals = np.array(d[pred_key])
+                    model_type = d['model_info']['type']
+                    forecast_range = d['model_info'].get('range', [0, 0])
+                    
+                    summary_rows.append({
+                        '🌍 Region': reg,
+                        '🧠 Model': model_type,
+                        f'📊 Avg {metric_name}': f"{vals.mean():.1f}{unit_symbol}",
+                        f'📈 Max {metric_name}': f"{vals.max():.1f}{unit_symbol}",
+                        f'📉 Min {metric_name}': f"{vals.min():.1f}{unit_symbol}",
+                        '📅 Forecast Days': days,
+                        '🎯 Confidence Range': f"{forecast_range[0]:.1f} - {forecast_range[1]:.1f}{unit_symbol}"
+                    })
+            
+            if summary_rows:
+                df_summary = pd.DataFrame(summary_rows)
+                st.dataframe(df_summary, use_container_width=True)
+                
+                # Download button for summary
+                csv = df_summary.to_csv(index=False)
+                st.download_button(
+                    label="💾 Download Forecast Summary",
+                    data=csv,
+                    file_name=f"{metric_name.lower()}_forecast_summary.csv",
+                    mime="text/csv"
+                )
+            
+            # --- KEY INSIGHTS SECTION ----------------------------------
+            st.markdown("### 💡 Key Insights")
+            
+            insights_cols = st.columns(3)
+            
+            with insights_cols[0]:
+                if summary_rows:
+                    avg_values = [float(row[f'📊 Avg {metric_name}'].replace(unit_symbol, '')) for row in summary_rows]
+                    best_region = summary_rows[np.argmin(avg_values)]['🌍 Region']
+                    worst_region = summary_rows[np.argmax(avg_values)]['🌍 Region']
+                    
+                    st.info(f"""
+                    **🏆 Best Performing Region:**  
+                    {best_region}
+                    
+                    **⚠️ Highest Load Region:**  
+                    {worst_region}
+                    """)
+            
+            with insights_cols[1]:
+                if perf_data:
+                    best_model = min(perf_data['regional_performance'].items(), 
+                                   key=lambda x: x[1]['rmse'])
+                    st.success(f"""
+                    **🎯 Most Accurate Model:**  
+                    {best_model[1]['model']} in {best_model[0]}
+                    
+                    **📊 RMSE:** {best_model[1]['rmse']:.2f}
+                    """)
+            
+            with insights_cols[2]:
+                if summary_rows:
+                    total_forecast = sum(float(row[f'📊 Avg {metric_name}'].replace(unit_symbol, '')) 
+                                       for row in summary_rows)
+                    st.warning(f"""
+                    **📈 Total Forecast Average:**  
+                    {total_forecast:.1f}{unit_symbol}
+                    
+                    **🕒 Forecast Period:**  
+                    {days} days
+                    """)
+            
+            st.session_state[f"gen_{metric_name}"] = False
+    
+    # ------------------------------------------------------------------
+    # CPU FORECAST TAB
+    # ------------------------------------------------------------------
+    with cpu_tab:
+        enhanced_forecast_ui(
+            metric_name="CPU Usage",
+            model_ep="forecast/models",
+            predict_ep="forecast/predict",
+            pred_key="predicted_cpu",
+            yaxis_title="CPU Usage (%)",
+            unit_symbol="%"
+        )
+    
+    # ------------------------------------------------------------------
+    # ACTIVE USERS FORECAST TAB
+    # ------------------------------------------------------------------
+    with users_tab:
+        enhanced_forecast_ui(
+            metric_name="Active Users",
+            model_ep="forecast/users/models",
+            predict_ep="forecast/users/predict",
+            pred_key="predicted_users",
+            yaxis_title="Active Users (count)",
+            unit_symbol=" users"
+        )
+# Add this as Tab 8 in your dashboard
+# Enhanced Tab 8: Intelligent Model Training Pipeline Dashboard
+
+# FIXED Tab 8: Intelligent Model Training Pipeline Dashboard - CORRECTED API ENDPOINTS
+
+with tab8:
+    st.markdown("# 🤖 Intelligent Model Training Pipeline")
+    st.markdown("*Automated model selection using ARIMA, XGBoost, and LSTM with performance-based deployment*")
+    
+    # ===== ENHANCED PIPELINE STATUS OVERVIEW =====
+    st.markdown("---")
+    st.markdown("### 📊 Pipeline Status Overview")
+    
+    # FIXED: Correct API endpoint
+    status_data = fetch_api('training/intelligent/status')
+    if status_data:
+        # Main status metrics
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.metric("Pipeline Status", 
+                     "🟢 Active" if status_data.get('pipeline_active') else "🔴 Inactive")
+        
+        with col2:
+            pipeline_type = status_data.get('pipeline_type', 'unknown')
+            st.metric("Selection Method", 
+                     "🧠 Intelligent" if pipeline_type == 'intelligent_auto_selection' else "📝 Manual")
+        
+        with col3:
+            if status_data.get('recent_monitoring'):
+                last_check = pd.to_datetime(status_data['recent_monitoring'][0]['check_date'])
+                st.metric("Last Check", last_check.strftime("%m-%d %H:%M"))
+            else:
+                st.metric("Last Check", "N/A")
+            
+        with col4:
+            total_models = len(status_data.get('current_models', []))
+            st.metric("Active Models", f"{total_models}/8")  # 4 regions × 2 metrics
+            
+        with col5:
+            model_types = status_data.get('all_model_types_tested', [])
+            st.metric("Model Types Tested", len(model_types))
+        
+        # Pipeline info banner
+        if status_data.get('pipeline_type') == 'intelligent_auto_selection':
+            st.info("🧠 **Intelligent Pipeline Active:** All model types (ARIMA, XGBoost, LSTM) are trained for each region. The best performing model is automatically selected and deployed based on RMSE performance.")
+    else:
+        st.warning("⚠️ Unable to connect to intelligent training pipeline. Using fallback mode.")
+    
+    # ===== ENHANCED MANUAL CONTROL SECTION =====
+    st.markdown("---")
+    st.markdown("### 🎮 Intelligent Training Control")
+    
+    control_col1, control_col2, control_col3 = st.columns([2, 1, 1])
+    
+    with control_col1:
+        if st.button("🚀 Trigger Intelligent Training", type="primary", use_container_width=True):
+            with st.spinner("Starting intelligent training pipeline..."):
+                try:
+                    # FIXED: Correct API endpoint
+                    response = requests.post(f"{BASE_URL}/training/intelligent/trigger")
+                    if response.status_code == 200:
+                        result = response.json()
+                        st.success(f"✅ {result.get('status', 'Training started')}")
+                        st.info(f"🧠 Training all model types: {', '.join(result.get('models_to_test', []))}")
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Failed to start training (Status: {response.status_code})")
+                except Exception as e:
+                    st.error(f"❌ Connection error: {str(e)}")
+    
+    with control_col2:
+        if st.button("🔄 Refresh Status", use_container_width=True):
+            st.rerun()
+    
+    with control_col3:
+        if st.button("📊 View Logs", use_container_width=True):
+            st.info("Check terminal/console for detailed training progress")
+    
+    # ===== CURRENT MODEL CONFIGURATIONS =====
+    st.markdown("---")
+    st.markdown("### 🏆 Current Best Models (Auto-Selected)")
+    
+    if status_data and status_data.get('model_configurations'):
+        config_col1, config_col2 = st.columns(2)
+        
+        # CPU Models Configuration
+        with config_col1:
+            st.markdown("#### 🖥️ CPU Usage Models")
+            cpu_models = status_data['model_configurations'].get('cpu', {})
+            cpu_df = pd.DataFrame([
+                {
+                    '🌍 Region': region,
+                    '🧠 Best Model': model,
+                    '🎯 Status': '✅ Active' if status_data.get('current_models') else '⚡ Ready'
+                }
+                for region, model in cpu_models.items()
+            ])
+            st.dataframe(cpu_df, use_container_width=True, hide_index=True)
+        
+        # Users Models Configuration  
+        with config_col2:
+            st.markdown("#### 👥 Active Users Models")
+            users_models = status_data['model_configurations'].get('users', {})
+            users_df = pd.DataFrame([
+                {
+                    '🌍 Region': region,
+                    '🧠 Best Model': model,
+                    '🎯 Status': '✅ Active' if status_data.get('current_models') else '⚡ Ready'
+                }
+                for region, model in users_models.items()
+            ])
+            st.dataframe(users_df, use_container_width=True, hide_index=True)
+    elif status_data:
+        st.info("📊 Model configurations not available. Pipeline may still be initializing.")
+    
+    # ===== ENHANCED MODEL PERFORMANCE VISUALIZATION =====
+    st.markdown("---")
+    st.markdown("### 📊 Current Model Performance Analysis")
+    
+    if status_data and status_data.get('current_models'):
+        models_df = pd.DataFrame(status_data['current_models'])
+        
+        perf_tab1, perf_tab2, perf_tab3 = st.tabs(["📈 RMSE Performance", "🎯 MAPE Analysis", "📋 Detailed Metrics"])
+        
+        with perf_tab1:
+            # RMSE Performance Chart
+            fig_rmse = go.Figure()
+            
+            cpu_models = models_df[models_df['metric_type'] == 'cpu']
+            users_models = models_df[models_df['metric_type'] == 'users']
+            
+            if not cpu_models.empty:
+                fig_rmse.add_trace(go.Bar(
+                    name='CPU Models',
+                    x=cpu_models['region'],
+                    y=cpu_models['rmse'],
+                    marker_color='#3498DB',
+                    text=[f"{v:.2f}" for v in cpu_models['rmse']],
+                    textposition='auto',
+                    customdata=cpu_models['model_type'],
+                    hovertemplate='<b>%{x} - CPU</b><br>Model: %{customdata}<br>RMSE: %{y:.2f}<extra></extra>'
+                ))
+            
+            if not users_models.empty:
+                fig_rmse.add_trace(go.Bar(
+                    name='Users Models',
+                    x=users_models['region'],
+                    y=users_models['rmse'],
+                    marker_color='#E74C3C',
+                    text=[f"{v:.2f}" for v in users_models['rmse']],
+                    textposition='auto',
+                    customdata=users_models['model_type'],
+                    hovertemplate='<b>%{x} - Users</b><br>Model: %{customdata}<br>RMSE: %{y:.2f}<extra></extra>'
+                ))
+            
+            fig_rmse.update_layout(
+                title="🏆 Best Model RMSE Performance by Region",
+                xaxis_title="Region",
+                yaxis_title="RMSE (Lower is Better)",
+                barmode='group',
+                height=450,
+                showlegend=True
+            )
+            
+            st.plotly_chart(fig_rmse, use_container_width=True)
+        
+        with perf_tab2:
+            # MAPE Performance Chart
+            if 'mape' in models_df.columns and not models_df['mape'].isna().all():
+                fig_mape = go.Figure()
+                
+                cpu_mape = cpu_models[cpu_models['mape'].notna()]
+                users_mape = users_models[users_models['mape'].notna()]
+                
+                if not cpu_mape.empty:
+                    fig_mape.add_trace(go.Bar(
+                        name='CPU Models',
+                        x=cpu_mape['region'],
+                        y=cpu_mape['mape'],
+                        marker_color='#2ECC71',
+                        text=[f"{v:.1f}%" for v in cpu_mape['mape']],
+                        textposition='auto'
+                    ))
+                
+                if not users_mape.empty:
+                    fig_mape.add_trace(go.Bar(
+                        name='Users Models',
+                        x=users_mape['region'],
+                        y=users_mape['mape'],
+                        marker_color='#F39C12',
+                        text=[f"{v:.1f}%" for v in users_mape['mape']],
+                        textposition='auto'
+                    ))
+                
+                # Add performance reference lines
+                fig_mape.add_hline(y=10, line_dash="dash", line_color="green", 
+                                  annotation_text="Excellent (<10%)")
+                fig_mape.add_hline(y=20, line_dash="dash", line_color="orange", 
+                                  annotation_text="Good (<20%)")
+                
+                fig_mape.update_layout(
+                    title="🎯 Model Accuracy: MAPE by Region",
+                    xaxis_title="Region",
+                    yaxis_title="MAPE - Mean Absolute Percentage Error (%)",
+                    barmode='group',
+                    height=450
+                )
+                
+                st.plotly_chart(fig_mape, use_container_width=True)
+            else:
+                st.info("📊 MAPE data not available - train models to see accuracy metrics")
+        
+        with perf_tab3:
+            # Detailed model information table
+            st.markdown("#### 📋 Comprehensive Model Performance")
+            
+            if not models_df.empty:
+                # Format the dataframe for better display
+                display_df = models_df.copy()
+                display_df['training_date'] = pd.to_datetime(display_df['training_date']).dt.strftime('%Y-%m-%d %H:%M')
+                display_df['rmse'] = display_df['rmse'].round(2)
+                display_df['mae'] = display_df['mae'].round(2)
+                if 'mape' in display_df.columns:
+                    display_df['mape'] = display_df['mape'].round(2)
+                
+                # Reorder and rename columns
+                column_mapping = {
+                    'region': '🌍 Region',
+                    'metric_type': '📊 Metric',
+                    'model_type': '🧠 Model',
+                    'rmse': '📉 RMSE',
+                    'mae': '📊 MAE',
+                    'mape': '🎯 MAPE (%)',
+                    'training_date': '📅 Last Updated'
+                }
+                
+                display_cols = [col for col in column_mapping.keys() if col in display_df.columns]
+                final_df = display_df[display_cols].rename(columns=column_mapping)
+                
+                st.dataframe(final_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("📊 No model performance data available. Please trigger training to see results.")
+    
+    # ===== MODEL COMPARISON SECTION =====
+    st.markdown("---")
+    st.markdown("### 🔍 Intelligent Model Comparison")
+    
+    # FIXED: Correct API endpoint
+    comparison_data = fetch_api('training/intelligent/model-comparison')
+    if comparison_data and comparison_data.get('all_model_comparison'):
+        comparison_df = pd.DataFrame(comparison_data['all_model_comparison'])
+        
+        if not comparison_df.empty:
+            comp_tab1, comp_tab2 = st.tabs(["🏁 Model Race", "📈 Performance Matrix"])
+            
+            with comp_tab1:
+                # Model performance comparison by region
+                st.markdown("#### 🏆 Best Model Selection by Region")
+                
+                for metric_type in comparison_df['metric_type'].unique():
+                    st.markdown(f"**{metric_type.upper()} Models:**")
+                    
+                    metric_data = comparison_df[comparison_df['metric_type'] == metric_type]
+                    
+                    fig_comparison = go.Figure()
+                    
+                    colors = {'ARIMA': '#FF6B6B', 'XGBoost': '#4ECDC4', 'LSTM': '#45B7D1'}
+                    
+                    for model_type in ['ARIMA', 'XGBoost', 'LSTM']:
+                        model_data = metric_data[metric_data['model_type'] == model_type]
+                        
+                        if not model_data.empty:
+                            fig_comparison.add_trace(go.Bar(
+                                name=model_type,
+                                x=model_data['region'],
+                                y=model_data['rmse'],
+                                marker_color=colors.get(model_type, '#95A5A6'),
+                                text=[f"{v:.2f}" for v in model_data['rmse']],
+                                textposition='auto'
+                            ))
+                    
+                    fig_comparison.update_layout(
+                        title=f"{metric_type.upper()} Model Performance Comparison",
+                        xaxis_title="Region",
+                        yaxis_title="RMSE",
+                        barmode='group',
+                        height=400
+                    )
+                    
+                    st.plotly_chart(fig_comparison, use_container_width=True)
+            
+            with comp_tab2:
+                # Performance matrix
+                st.markdown("#### 📊 Model Performance Matrix")
+                
+                # Create pivot table for better visualization
+                if not comparison_df.empty:
+                    for metric_type in comparison_df['metric_type'].unique():
+                        metric_data = comparison_df[comparison_df['metric_type'] == metric_type]
+                        
+                        pivot_df = metric_data.pivot(index='region', columns='model_type', values='rmse')
+                        
+                        if not pivot_df.empty:
+                            st.markdown(f"**{metric_type.upper()} RMSE Matrix:**")
+                            
+                            # Style the dataframe to highlight best models
+                            def highlight_min(s):
+                                is_min = s == s.min()
+                                return ['background-color: #d4edda; font-weight: bold' if v else '' for v in is_min]
+                            
+                            styled_df = pivot_df.style.apply(highlight_min, axis=1)
+                            st.dataframe(styled_df, use_container_width=True)
+                            
+                            # Show winner for each region
+                            st.markdown("**🏆 Winners:**")
+                            winners = pivot_df.idxmin(axis=1)
+                            winner_cols = st.columns(len(winners))
+                            
+                            for i, (region, best_model) in enumerate(winners.items()):
+                                with winner_cols[i]:
+                                    best_rmse = pivot_df.loc[region, best_model]
+                                    st.metric(f"{region}", f"{best_model}", f"{best_rmse:.2f} RMSE")
+    else:
+        st.info("📊 Model comparison data not available. Please trigger training to compare models.")
+    
+    # ===== TRAINING HISTORY & TRENDS =====
+    st.markdown("---")
+    st.markdown("### 📈 Training History & Performance Trends")
+    
+    # FIXED: Correct API endpoint
+    history_data = fetch_api('training/intelligent/history')
+    if history_data:
+        history_tab1, history_tab2, history_tab3 = st.tabs(["📊 Performance Evolution", "📅 Training Timeline", "🔄 Model Changes"])
+        
+        with history_tab1:
+            perf_history = pd.DataFrame(history_data['performance_history'])
+            
+            if not perf_history.empty:
+                # Performance evolution over time
+                fig_evolution = go.Figure()
+                
+                # Group by metric type for cleaner visualization
+                for metric_type in perf_history['metric_type'].unique():
+                    metric_data = perf_history[perf_history['metric_type'] == metric_type]
+                    
+                    for region in metric_data['region'].unique():
+                        region_data = metric_data[metric_data['region'] == region]
+                        region_data['training_date'] = pd.to_datetime(region_data['training_date'])
+                        region_data = region_data.sort_values('training_date')
+                        
+                        # Only show active models for cleaner view
+                        active_data = region_data[region_data['is_active'] == True]
+                        
+                        if not active_data.empty:
+                            line_style = 'solid' if metric_type == 'cpu' else 'dash'
+                            fig_evolution.add_trace(go.Scatter(
+                                x=active_data['training_date'],
+                                y=active_data['rmse'],
+                                mode='lines+markers',
+                                name=f"{region} ({metric_type.upper()})",
+                                line=dict(width=3, dash=line_style),
+                                hovertemplate=f'<b>{region} - {metric_type.upper()}</b><br>' +
+                                            'Date: %{x}<br>' +
+                                            'RMSE: %{y:.2f}<br>' +
+                                            'Model: %{customdata}<extra></extra>',
+                                customdata=active_data['model_type']
+                            ))
+                
+                fig_evolution.update_layout(
+                    title="🏆 Best Model Performance Evolution Over Time",
+                    xaxis_title="Training Date",
+                    yaxis_title="RMSE",
+                    height=500,
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig_evolution, use_container_width=True)
+            else:
+                st.info("📊 No performance history available yet.")
+        
+        with history_tab2:
+            monitor_history = pd.DataFrame(history_data['monitoring_history'])
+            
+            if not monitor_history.empty:
+                monitor_history['check_date'] = pd.to_datetime(monitor_history['check_date'])
+                
+                # Enhanced timeline with training events
+                fig_timeline = go.Figure()
+                
+                fig_timeline.add_trace(go.Bar(
+                    x=monitor_history['check_date'],
+                    y=monitor_history['new_records'],
+                    name='New Records',
+                    marker_color='#27AE60',
+                    hovertemplate='Date: %{x}<br>New Records: %{y}<extra></extra>'
+                ))
+                
+                # Highlight training events
+                training_dates = monitor_history[monitor_history['training_triggered'] == True]
+                if not training_dates.empty:
+                    fig_timeline.add_trace(go.Scatter(
+                        x=training_dates['check_date'],
+                        y=training_dates['new_records'],
+                        mode='markers',
+                        name='Training Triggered',
+                        marker=dict(size=15, color='red', symbol='star'),
+                        hovertemplate='<b>Training Triggered</b><br>Date: %{x}<br>New Records: %{y}<extra></extra>'
+                    ))
+                
+                fig_timeline.update_layout(
+                    title="📅 Data Monitoring & Training Events Timeline",
+                    xaxis_title="Date",
+                    yaxis_title="New Records",
                     height=400
                 )
-                st.plotly_chart(fig_mae, use_container_width=True)
-
-            # Performance summary
-            overall_stats = comparison_data['overall_stats']
-
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Average RMSE", f"{overall_stats['avg_rmse']:.2f}")
-            with col2:
-                st.metric("Average MAE", f"{overall_stats['avg_mae']:.2f}")
-            with col3:
-                st.metric("Best Performing Region", overall_stats['best_rmse_region'])
-            with col4:
-                st.metric("LSTM Regions", len(overall_stats['lstm_regions']))
-
+                
+                st.plotly_chart(fig_timeline, use_container_width=True)
+            else:
+                st.info("📊 No monitoring history available yet.")
+        
+        with history_tab3:
+            # Model change history
+            st.markdown("#### 🔄 Model Selection History")
+            
+            if 'model_comparison' in history_data:
+                model_comp = pd.DataFrame(history_data['model_comparison'])
+                
+                if not model_comp.empty:
+                    # Group by region and metric to show model evolution
+                    for region in model_comp['region'].unique():
+                        st.markdown(f"**{region}:**")
+                        
+                        region_data = model_comp[model_comp['region'] == region]
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            cpu_data = region_data[region_data['metric_type'] == 'cpu'].sort_values('best_rmse')
+                            if not cpu_data.empty:
+                                st.markdown("*CPU Models:*")
+                                for _, row in cpu_data.iterrows():
+                                    rank = "🥇" if row.name == cpu_data.index[0] else "🥈" if row.name == cpu_data.index[1] else "🥉"
+                                    st.write(f"{rank} {row['model_type']}: {row['best_rmse']:.2f} RMSE ({row['training_count']} trainings)")
+                        
+                        with col2:
+                            users_data = region_data[region_data['metric_type'] == 'users'].sort_values('best_rmse')
+                            if not users_data.empty:
+                                st.markdown("*Users Models:*")
+                                for _, row in users_data.iterrows():
+                                    rank = "🥇" if row.name == users_data.index[0] else "🥈" if row.name == users_data.index[1] else "🥉"
+                                    st.write(f"{rank} {row['model_type']}: {row['best_rmse']:.2f} RMSE ({row['training_count']} trainings)")
+                else:
+                    st.info("📊 No model comparison data available yet.")
+            else:
+                st.info("📊 Model comparison data not available yet.")
     else:
-        st.error("⚠️ Unable to load model information. Please ensure the API server is running and models are properly loaded.")
-
-        # Show placeholder information
-        st.markdown("""
-        <div style="background-color: #fff3cd; color: #856404; padding: 1rem; border-radius: 5px; border: 1px solid #ffeaa7; margin-bottom: 1rem;">
-            <h4>🔧 Model Setup Required</h4>
-            <p>To enable forecasting functionality, ensure:</p>
-            <ul>
-                <li>Trained models are saved in the <code>models/</code> directory</li>
-                <li>Backend API server is running on localhost:5000</li>
-                <li>Required Python packages are installed (tensorflow, statsmodels)</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-
+        st.info("📊 Training history not available. Please trigger training to see history.")
+    
+    # ===== ADVANCED CONFIGURATION =====
+    st.markdown("---")
+    st.markdown("### ⚙️ Intelligent Pipeline Configuration")
+    
+    # FIXED: Correct API endpoint
+    config_data = fetch_api('training/intelligent/config')
+    
+    if config_data:
+        config_tab1, config_tab2 = st.tabs(["🔧 Current Settings", "📊 System Info"])
+        
+        with config_tab1:
+            config_cols = st.columns(2)
+            
+            with config_cols[0]:
+                st.markdown("#### 🧠 Intelligence Settings")
+                st.info(f"**Selection Method:** {config_data.get('pipeline_type', 'unknown')}")
+                st.info(f"**Auto Selection:** {'✅ Enabled' if config_data.get('auto_model_selection') else '❌ Disabled'}")
+                
+                evaluation_metrics = config_data.get('evaluation_metrics', [])
+                st.info(f"**Evaluation Metrics:** {', '.join(evaluation_metrics)}")
+                
+                model_types = config_data.get('all_model_types_tested', [])
+                st.info(f"**Models Tested:** {', '.join(model_types)}")
+            
+            with config_cols[1]:
+                st.markdown("#### 📁 System Paths")
+                st.code(f"Data Path: {config_data.get('data_path', 'N/A')}", language="text")
+                st.code(f"CPU Models: {config_data.get('models_directories', {}).get('cpu', 'N/A')}", language="text")
+                st.code(f"Users Models: {config_data.get('models_directories', {}).get('users', 'N/A')}", language="text")
+                st.code(f"Performance DB: {config_data.get('performance_db', 'N/A')}", language="text")
+        
+        with config_tab2:
+            st.markdown("#### 📊 Current System Status")
+            
+            info_cols = st.columns(4)
+            
+            with info_cols[0]:
+                st.metric("Pipeline Type", "Intelligent")
+            
+            with info_cols[1]:
+                total_regions = len(config_data.get('current_cpu_models', {}))
+                st.metric("Regions", total_regions)
+            
+            with info_cols[2]:
+                total_model_types = len(config_data.get('all_model_types_tested', []))
+                st.metric("Model Types", total_model_types)
+            
+            with info_cols[3]:
+                auto_selection = config_data.get('auto_model_selection', False)
+                st.metric("Auto Selection", "✅" if auto_selection else "❌")
+    else:
+        st.warning("⚠️ Configuration data not available. Pipeline may not be connected.")
+    
+    # ===== FALLBACK INFORMATION =====
+    if not status_data and not config_data:
+        st.markdown("---")
+        st.markdown("### ℹ️ Fallback Information")
+        st.warning("""
+        🔌 **Intelligent Training Pipeline Not Connected**
+        
+        This could be due to:
+        - Pipeline service not running
+        - Database not initialized
+        - Model training pipeline not properly imported
+        
+        **To activate intelligent training:**
+        1. Ensure `model_training_pipeline.py` is in your project directory
+        2. Make sure the pipeline database is initialized
+        3. Restart the backend API server
+        
+        **Current Status:** Using static model configurations as fallback.
+        """)
+        
+        # Show static model configurations
+        st.markdown("#### 📋 Static Model Configuration (Fallback)")
+        
+        fallback_col1, fallback_col2 = st.columns(2)
+        
+        with fallback_col1:
+            st.markdown("**CPU Models:**")
+            cpu_static = {
+                'East US': 'LSTM',
+                'North Europe': 'ARIMA', 
+                'Southeast Asia': 'LSTM',
+                'West US': 'LSTM'
+            }
+            for region, model in cpu_static.items():
+                st.write(f"• {region}: {model}")
+        
+        with fallback_col2:
+            st.markdown("**Users Models:**")
+            users_static = {
+                'East US': 'LSTM',
+                'North Europe': 'XGBoost',
+                'Southeast Asia': 'ARIMA', 
+                'West US': 'XGBoost'
+            }
+            for region, model in users_static.items():
+                st.write(f"• {region}: {model}")
+    
+    # ===== QUICK ACTIONS =====
+    st.markdown("---")
+    st.markdown("### ⚡ Quick Actions")
+    
+    action_cols = st.columns(4)
+    
+    with action_cols[0]:
+        if st.button("📊 View Current Status", use_container_width=True):
+            if status_data:
+                st.json(status_data)
+            else:
+                st.json({"error": "No status data available", "suggestion": "Check pipeline connection"})
+    
+    with action_cols[1]:
+        if st.button("🔍 Model Comparison", use_container_width=True):
+            if comparison_data:
+                st.json(comparison_data)
+            else:
+                st.json({"error": "No comparison data available", "suggestion": "Trigger training to generate data"})
+    
+    with action_cols[2]:
+        if st.button("📈 Latest History", use_container_width=True):
+            if history_data:
+                recent_history = {
+                    'recent_performance': history_data.get('performance_history', [])[:5],
+                    'recent_monitoring': history_data.get('monitoring_history', [])[:5]
+                }
+                st.json(recent_history)
+            else:
+                st.json({"error": "No history data available", "suggestion": "Trigger training to generate history"})
+    
+    with action_cols[3]:
+        if st.button("⚙️ System Config", use_container_width=True):
+            if config_data:
+                st.json(config_data)
+            else:
+                st.json({"error": "No config data available", "suggestion": "Check pipeline connection"})
+    
+    # ===== CONNECTION STATUS =====
+    st.markdown("---")
+    st.markdown("### 🔌 Connection Status")
+    
+    status_cols = st.columns(4)
+    
+    with status_cols[0]:
+        if status_data:
+            st.success("✅ Status API")
+        else:
+            st.error("❌ Status API")
+    
+    with status_cols[1]:
+        if comparison_data:
+            st.success("✅ Comparison API")
+        else:
+            st.error("❌ Comparison API")
+    
+    with status_cols[2]:
+        if history_data:
+            st.success("✅ History API")
+        else:
+            st.error("❌ History API")
+    
+    with status_cols[3]:
+        if config_data:
+            st.success("✅ Config API")
+        else:
+            st.error("❌ Config API")
 #-------------------------------------------i have edited up code-------------------------------------------------
 
 # Footer

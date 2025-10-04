@@ -1,0 +1,21 @@
+{
+  "cpu_models": {
+    "East US": "ARIMA",
+    "North Europe": "ARIMA",
+    "Southeast Asia": "LSTM",
+    "West US": "XGBoost"
+  },
+  "users_models": {
+    "East US": "XGBoost",
+    "North Europe": "XGBoost",
+    "Southeast Asia": "ARIMA",
+    "West US": "XGBoost"
+  },
+  "updated": "2025-10-04T21:46:27.974856",
+  "regions": [
+    "East US",
+    "North Europe",
+    "Southeast Asia",
+    "West US"
+  ]
+}

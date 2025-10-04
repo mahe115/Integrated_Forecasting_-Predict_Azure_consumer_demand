@@ -1,0 +1,77 @@
+{
+  "timestamp": "2025-10-04T21:08:23.987407",
+  "new_records": 0,
+  "cpu_results": {
+    "East US": {
+      "model_type": "LSTM",
+      "rmse": 10.129508993272783,
+      "mae": 8.149271965026855,
+      "mape": 11.23566688852524,
+      "improved": "True",
+      "deployed": true
+    },
+    "North Europe": {
+      "model_type": "ARIMA",
+      "rmse": 8.022448544529402,
+      "mae": 6.041903240855732,
+      "mape": 8.344581283523302,
+      "improved": "True",
+      "deployed": true
+    },
+    "Southeast Asia": {
+      "model_type": "LSTM",
+      "rmse": 6.91600640294864,
+      "mae": 5.649284811580882,
+      "mape": 7.9038027685236685,
+      "improved": "True",
+      "deployed": true
+    },
+    "West US": {
+      "model_type": "LSTM",
+      "rmse": 8.968736000117246,
+      "mae": 7.8351443421606914,
+      "mape": 10.87061950122305,
+      "improved": "True",
+      "deployed": true
+    }
+  },
+  "users_results": {
+    "East US": {
+      "model_type": "LSTM",
+      "rmse": 163.84645019001488,
+      "mae": 130.68591308593747,
+      "mape": 12.026817045987523,
+      "improved": "False",
+      "deployed": true
+    },
+    "North Europe": {
+      "model_type": "XGBoost",
+      "rmse": 192.84347401130793,
+      "mae": 158.80712890625,
+      "mape": 16.00129780789365,
+      "improved": "True",
+      "deployed": true
+    },
+    "Southeast Asia": {
+      "model_type": "ARIMA",
+      "rmse": 108.65374704505633,
+      "mae": 85.84438748451788,
+      "mape": 8.706778098989822,
+      "improved": "False",
+      "deployed": true
+    },
+    "West US": {
+      "model_type": "XGBoost",
+      "rmse": 176.07789691284367,
+      "mae": 141.7716064453125,
+      "mape": 13.146798771380691,
+      "improved": "True",
+      "deployed": true
+    }
+  },
+  "summary": {
+    "cpu_models_updated": 4,
+    "users_models_updated": 4,
+    "total_models_trained": 8
+  }
+}

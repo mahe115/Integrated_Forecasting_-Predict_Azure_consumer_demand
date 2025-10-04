@@ -1,3 +1,4 @@
+# COMPLETE ULTRA-FAST API - WINDOWS COMPATIBLE WITH INTELLIGENT TRAINING
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import pandas as pd
@@ -15,6 +16,9 @@ import time
 import json
 from threading import RLock
 import pickle
+
+# Add these imports at the top
+import sqlite3
 
 # Optimize imports and suppress warnings
 warnings.filterwarnings('ignore')
@@ -192,12 +196,32 @@ def windows_cache(cache_type='medium'):
 
 # ===== MODEL CONFIGURATION =====
 
-FINAL_SELECTION = {
-    'East US': 'LSTM',
-    'North Europe': 'ARIMA', 
-    'Southeast Asia': 'LSTM',
-    'West US': 'LSTM'
-}
+# Initialize intelligent pipeline after data loading
+try:
+    from model_training_pipeline import ModelTrainingPipeline
+    intelligent_pipeline = ModelTrainingPipeline()
+    print("🤖 Intelligent training pipeline connected")
+except ImportError as e:
+    print(f"⚠️ Warning: Intelligent pipeline not available: {e}")
+    intelligent_pipeline = None
+
+# Use intelligent pipeline models if available, fallback to static config
+if intelligent_pipeline:
+    FINAL_SELECTION = intelligent_pipeline.CPU_MODELS
+    FINAL_SELECTION_USERS = intelligent_pipeline.USERS_MODELS
+else:
+    FINAL_SELECTION = {
+        'East US': 'LSTM',
+        'North Europe': 'ARIMA', 
+        'Southeast Asia': 'LSTM',
+        'West US': 'LSTM'
+    }
+    FINAL_SELECTION_USERS = {
+        'East US':        'LSTM',
+        'North Europe':   'XGBoost',
+        'Southeast Asia': 'ARIMA',
+        'West US':        'XGBoost',
+    }
 
 MODEL_DIR = 'models/'
 loaded_models = {}
@@ -364,8 +388,6 @@ def get_sparklines():
 @windows_cache('slow')
 def get_data_raw():
     return jsonify(df.to_dict('records'))
-
-
 
 @app.route('/api/time-series')
 @windows_cache('fast')
@@ -556,7 +578,6 @@ def get_bubble_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/holiday/analysis')
 @windows_cache('medium')
 def get_holiday_analysis():
@@ -676,20 +697,28 @@ def get_data_summary():
 @app.route('/api/forecast/models')
 @windows_cache('fast')
 def get_available_models():
+    """Get current best models (dynamically updated by intelligent pipeline)"""
     try:
         model_info = {}
+        
+        # Use current best CPU models
         for region, model_type in FINAL_SELECTION.items():
             model_info[region] = {
                 'model_type': model_type,
                 'loaded': region in loaded_models,
-                'has_scaler': region in loaded_scalers if model_type == 'LSTM' else None
+                'has_scaler': region in loaded_scalers if model_type == 'LSTM' else None,
+                'selection_method': 'intelligent_auto_selection' if intelligent_pipeline else 'static',
+                'last_updated': 'dynamic' if intelligent_pipeline else 'static'
             }
+        
         return jsonify({
             'models': model_info,
             'total_regions': len(FINAL_SELECTION),
             'model_types_used': list(set(FINAL_SELECTION.values())),
-            'ml_available': ml_available
+            'ml_available': ml_available,
+            'selection_method': 'intelligent_auto_selection' if intelligent_pipeline else 'static'
         })
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -882,10 +911,591 @@ def generate_lstm_forecast_fast(model, scaler, region_data, forecast_days):
         print(f"💥 LSTM forecast error: {str(e)}")
         return {'error': f'LSTM forecast error: {str(e)}'}
 
+# ===== USERS MODEL SECTION =====
+
+# User model directory - CORRECTED PATH
+USER_MODEL_DIR = r'D:\infosysspringboard projects\project1-1stmilestine\AZURE_BACKEND_TEAM-B\notebooks\users_active_forecasting_models\\'
+
+loaded_user_models   = {}
+loaded_user_scalers  = {}
+
+def load_single_user_model(region, model_type):
+    """Load ACTIVE-USERS model for one region based on actual directory structure."""
+    try:
+        # Convert region name to match file naming convention
+        region_clean = region.replace(' ', '')  # Remove spaces: "East US" -> "EastUS"
+        
+        if model_type == 'ARIMA':
+            m_path = f"{USER_MODEL_DIR}{region_clean}_ARIMA_users.pkl"
+            print(f"Looking for ARIMA model at: {m_path}")
+            if os.path.exists(m_path):
+                with open(m_path, 'rb') as f:
+                    model = pickle.load(f)
+                return region, 'ARIMA', model, None
+            else:
+                print(f"ARIMA model file not found: {m_path}")
+                
+        elif model_type == 'XGBoost':
+            m_path = f"{USER_MODEL_DIR}{region_clean}_XGBoost_users.pkl"
+            print(f"Looking for XGBoost model at: {m_path}")
+            if os.path.exists(m_path):
+                with open(m_path, 'rb') as f:
+                    model = pickle.load(f)
+                return region, 'XGBoost', model, None
+            else:
+                print(f"XGBoost model file not found: {m_path}")
+                
+        elif model_type == 'LSTM':
+            m_path = f"{USER_MODEL_DIR}{region_clean}_LSTM_users.h5"
+            s_path = f"{USER_MODEL_DIR}{region_clean}_scaler_users.pkl"
+            print(f"Looking for LSTM model at: {m_path}")
+            print(f"Looking for LSTM scaler at: {s_path}")
+            
+            if os.path.exists(m_path) and os.path.exists(s_path):
+                if lazy_import_ml():
+                    model = load_model(m_path,
+                                       custom_objects={'mse': MeanSquaredError()},
+                                       compile=False)
+                    with open(s_path, 'rb') as f:
+                        scaler = pickle.load(f)
+                    return region, 'LSTM', model, scaler
+                else:
+                    print("TensorFlow not available for LSTM loading")
+            else:
+                print(f"LSTM model or scaler file not found: {m_path}, {s_path}")
+                
+        return region, model_type, None, None
+    except Exception as e:
+        print(f"User-model load error for {region}: {e}")
+        return region, model_type, None, None
+
+def load_user_models_threaded():
+    """Parallel loading for user-forecast models."""
+    print("Starting user model loading...")
+    print(f"User model directory: {USER_MODEL_DIR}")
+    
+    if not lazy_import_ml():
+        print("ML libraries not available for user model loading")
+        return
+        
+    # Check if directory exists
+    if not os.path.exists(USER_MODEL_DIR):
+        print(f"❌ User model directory does not exist: {USER_MODEL_DIR}")
+        return
+        
+    # List files in directory for debugging
+    try:
+        files = os.listdir(USER_MODEL_DIR)
+        print(f"Files found in user model directory: {files}")
+    except Exception as e:
+        print(f"Error listing directory contents: {e}")
+        
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futures = [ex.submit(load_single_user_model, r, t)
+                   for r, t in FINAL_SELECTION_USERS.items()]
+        for fut in as_completed(futures):
+            region, mtype, model, scaler = fut.result()
+            if model is not None:
+                loaded_user_models[region]  = model
+                if scaler is not None:
+                    loaded_user_scalers[region] = scaler
+                print(f"✅ User {mtype} model loaded for {region}")
+            else:
+                print(f"❌ User model missing for {region} ({mtype})")
+
+# kick-off async load
+threading.Thread(target=load_user_models_threaded, daemon=True).start()
+
+# -------- FIXED GENERIC HELPERS (Matching Training Feature Engineering) --------
+def _arima_generic(model, series, forecast_days):
+    """ARIMA forecasting - unchanged as it works correctly."""
+    fc   = model.forecast(steps=forecast_days)
+    fmin = float(np.min(fc)); fmax = float(np.max(fc))
+    return fc, fmin, fmax
+
+def _lstm_generic(model, scaler, series, forecast_days):
+    """LSTM forecasting - using optimized sequence length from notebook."""
+    # Use sequence length based on optimization results
+    seq_len = 21  # East US uses 21 steps based on notebook optimization
+    
+    # Ensure we have enough data
+    if len(series) < seq_len:
+        seq_len = min(7, len(series))
+        
+    data = scaler.transform(series.values.reshape(-1, 1))
+    seq = data[-seq_len:].reshape(1, seq_len, 1)
+    preds = []
+    
+    for _ in range(forecast_days):
+        nxt = model.predict(seq, verbose=0)[0, 0]
+        preds.append(nxt)
+        seq = np.roll(seq, -1, axis=1)
+        seq[0, -1, 0] = nxt
+    
+    preds_inv = scaler.inverse_transform(np.array(preds).reshape(-1, 1)).flatten()
+    return preds_inv, float(preds_inv.min()), float(preds_inv.max())
+
+def _xgboost_generic(model, region_data, forecast_days):
+    """
+    PROPERLY FIXED XGBoost forecasting with correct recursive feature updates
+    """
+    try:
+        # Create feature DataFrame matching training exactly
+        df_xgb = region_data.copy()
+        
+        # Add lag features EXACTLY as in training
+        df_xgb['lag1_users'] = df_xgb['users_active'].shift(1)
+        df_xgb['lag7_users'] = df_xgb['users_active'].shift(7)
+        df_xgb['lag1_cpu'] = df_xgb['usage_cpu'].shift(1)
+        df_xgb['lag1_storage'] = df_xgb['usage_storage'].shift(1)
+        df_xgb['roll7_mean_users'] = df_xgb['users_active'].rolling(7).mean()
+        df_xgb['dow'] = df_xgb.index.dayofweek  # Day of week
+        
+        # Drop NaN rows created by lagging
+        df_xgb = df_xgb.dropna()
+        
+        if len(df_xgb) == 0:
+            print("Warning: No data left after feature engineering")
+            return np.full(forecast_days, 1000.0), 1000.0, 1000.0
+        
+        # Feature columns EXACTLY as in training
+        features = ['lag1_users', 'lag7_users', 'roll7_mean_users',
+                   'lag1_cpu', 'lag1_storage', 'usage_cpu', 'usage_storage',
+                   'economic_index', 'dow', 'holiday']
+        
+        # Verify all features exist
+        available_features = [col for col in features if col in df_xgb.columns]
+        print(f"Available features for XGBoost: {available_features}")
+        
+        # Get recent history for building proper features during forecasting
+        recent_users = region_data['users_active'].tail(30).values  # Last 30 days
+        recent_cpu = region_data['usage_cpu'].tail(10).values       # Last 10 days for lag features
+        recent_storage = region_data['usage_storage'].tail(10).values
+        
+        # Get last known values for static features
+        last_economic = region_data['economic_index'].iloc[-1]
+        last_holiday = region_data['holiday'].iloc[-1]  # Will be updated for future dates
+        last_date = region_data.index[-1]
+        
+        forecasts = []
+        
+        # For each forecast day - PROPERLY RECURSIVE
+        for i in range(forecast_days):
+            # Calculate current date
+            current_date = last_date + pd.Timedelta(days=i+1)
+            current_dow = current_date.dayofweek
+            
+            # Build features for this prediction step
+            if i == 0:
+                # First prediction - use actual historical data
+                lag1_users = recent_users[-1]  # Yesterday's users
+                lag7_users = recent_users[-7] if len(recent_users) >= 7 else recent_users[0]
+                roll7_mean = np.mean(recent_users[-7:]) if len(recent_users) >= 7 else np.mean(recent_users)
+                lag1_cpu = recent_cpu[-1]
+                lag1_storage = recent_storage[-1]
+            else:
+                # Subsequent predictions - use combination of historical and predicted values
+                if i >= 7:
+                    lag7_users = forecasts[i-7]  # Use our own prediction from 7 days ago
+                else:
+                    lag7_users = recent_users[-(7-i)] if len(recent_users) >= (7-i) else recent_users[0]
+                
+                lag1_users = forecasts[i-1]  # Yesterday's prediction
+                
+                # Rolling mean using last 7 values (mix of historical and predicted)
+                if i < 7:
+                    recent_window = list(recent_users[-(7-i):]) + forecasts[:i]
+                else:
+                    recent_window = forecasts[i-7:i]
+                roll7_mean = np.mean(recent_window)
+                
+                # For CPU/storage, assume they remain similar to recent values
+                lag1_cpu = recent_cpu[-1]  # Could be enhanced with CPU forecasting
+                lag1_storage = recent_storage[-1]
+            
+            # Current values (assume similar to recent for simplicity)
+            current_cpu = recent_cpu[-1]
+            current_storage = recent_storage[-1]
+            
+            # Build feature vector
+            feature_vector = np.array([
+                lag1_users,           # lag1_users
+                lag7_users,           # lag7_users  
+                roll7_mean,           # roll7_mean_users
+                lag1_cpu,             # lag1_cpu
+                lag1_storage,         # lag1_storage
+                current_cpu,          # usage_cpu
+                current_storage,      # usage_storage
+                last_economic,        # economic_index
+                current_dow,          # dow
+                0  # holiday (assume no holidays, could be enhanced)
+            ]).reshape(1, -1)
+            
+            # Make prediction
+            pred = model.predict(feature_vector)[0]
+            
+            # Ensure reasonable bounds
+            pred = max(100, pred)  # Minimum 100 users
+            
+            forecasts.append(pred)
+        
+        forecasts = np.array(forecasts)
+        
+        print(f"XGBoost recursive predictions range: {forecasts.min():.1f} to {forecasts.max():.1f}")
+        return forecasts, float(forecasts.min()), float(forecasts.max())
+        
+    except Exception as e:
+        print(f"XGBoost prediction error: {e}")
+        # Return reasonable fallback values based on historical data
+        if 'users_active' in region_data.columns:
+            avg_users = region_data['users_active'].mean()
+            return np.full(forecast_days, avg_users), avg_users, avg_users
+        else:
+            return np.full(forecast_days, 1000.0), 1000.0, 1000.0
+
+# -------- ACTIVE-USERS FORECAST ENDPOINTS -----------------------------
+@app.route('/api/forecast/users/models')
+@windows_cache('fast')
+def users_model_status():
+    """Get current best user models (dynamically updated by intelligent pipeline)"""
+    try:
+        model_info = {}
+        
+        # Use current best USERS models
+        for region, model_type in FINAL_SELECTION_USERS.items():
+            model_info[region] = {
+                'model_type': model_type,
+                'loaded': region in loaded_user_models,
+                'has_scaler': region in loaded_user_scalers if model_type == 'LSTM' else None,
+                'selection_method': 'intelligent_auto_selection' if intelligent_pipeline else 'static',
+                'last_updated': 'dynamic' if intelligent_pipeline else 'static'
+            }
+        
+        return jsonify({
+            'models': model_info,
+            'total_regions': len(FINAL_SELECTION_USERS),
+            'model_types_used': list(set(FINAL_SELECTION_USERS.values())),
+            'ml_available': ml_available,
+            'model_directory': USER_MODEL_DIR,
+            'directory_exists': os.path.exists(USER_MODEL_DIR),
+            'selection_method': 'intelligent_auto_selection' if intelligent_pipeline else 'static'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/forecast/users/predict')
+def users_predict():
+    """Forecast ACTIVE USERS; structure mirrors CPU endpoint."""
+    try:
+        days        = max(7, min(int(request.args.get('days', 30)), 90))
+        region_req  = request.args.get('region')
+        
+        if not ml_available:
+            return jsonify({'error': 'ML libs unavailable'}), 503
+
+        regions = ([region_req] if region_req and region_req != "All Regions"
+                   else list(FINAL_SELECTION_USERS.keys()))
+        results = {}
+        
+        for region in regions:
+            print(f"\n=== Processing region: {region} ===")
+            
+            if region not in loaded_user_models:
+                results[region] = {'error': f'Model not loaded for {region}'}
+                continue
+                
+            if region not in region_dfs:
+                results[region] = {'error': f'Data not available for {region}'}
+                continue
+
+            model_type = FINAL_SELECTION_USERS[region]
+            model = loaded_user_models[region]
+            region_data = region_dfs[region]
+            users_series = region_data['users_active']
+            
+            print(f"Model type: {model_type}")
+            print(f"Data shape: {region_data.shape}")
+            print(f"Users range: {users_series.min():.1f} to {users_series.max():.1f}")
+
+            try:
+                if model_type == 'ARIMA':
+                    preds, pmin, pmax = _arima_generic(model, users_series, days)
+                elif model_type == 'XGBoost':
+                    # Pass the full region dataframe for proper feature engineering
+                    preds, pmin, pmax = _xgboost_generic(model, region_data, days)
+                else:  # LSTM
+                    scaler = loaded_user_scalers.get(region)
+                    if scaler is None:
+                        results[region] = {'error': 'Scaler missing for LSTM'}
+                        continue
+                    preds, pmin, pmax = _lstm_generic(model, scaler, users_series, days)
+
+                print(f"Predictions: {preds[:5]}... (showing first 5)")
+                print(f"Range: {pmin:.1f} to {pmax:.1f}")
+                
+                # Generate future dates
+                fut_dates = pd.date_range(users_series.index[-1] + timedelta(days=1),
+                                          periods=days, freq='D').strftime('%Y-%m-%d')
+                
+                # Get historical data for context
+                hist = users_series.tail(14)
+                
+                results[region] = {
+                    'dates': list(fut_dates),
+                    'predicted_users': [max(0, float(p)) for p in preds],  # Ensure non-negative
+                    'model_info': {
+                        'type': model_type,
+                        'forecast_horizon': days,
+                        'range': [pmin, pmax]
+                    },
+                    'historical': {
+                        'dates': hist.index.strftime('%Y-%m-%d').tolist(),
+                        'actual_users': hist.values.tolist()
+                    }
+                }
+                
+            except Exception as model_error:
+                print(f"Model prediction error for {region}: {model_error}")
+                results[region] = {'error': f'Prediction failed: {str(model_error)}'}
+                
+        return jsonify(results)
+        
+    except Exception as e:
+        print(f"General forecast error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# ===== INTELLIGENT TRAINING ENDPOINTS =====
+
+@app.route('/api/training/intelligent/status')
+@windows_cache('medium')
+def get_intelligent_training_status():
+    """Get intelligent training pipeline status - NEW ENDPOINT"""
+    try:
+        if not intelligent_pipeline:
+            return jsonify({'error': 'Intelligent pipeline not available'}), 503
+        
+        # Get model performance status
+        status_df = intelligent_pipeline.get_model_status()
+        
+        # Get recent data monitoring
+        conn = sqlite3.connect(intelligent_pipeline.performance_db)
+        monitoring_query = '''
+            SELECT * FROM data_monitoring 
+            ORDER BY check_date DESC LIMIT 10
+        '''
+        monitoring_df = pd.read_sql_query(monitoring_query, conn)
+        conn.close()
+        
+        # Get current best model configurations
+        current_models = {
+            'cpu': intelligent_pipeline.CPU_MODELS,
+            'users': intelligent_pipeline.USERS_MODELS
+        }
+        
+        return jsonify({
+            'current_models': status_df.to_dict('records'),
+            'recent_monitoring': monitoring_df.to_dict('records'),
+            'pipeline_active': True,
+            'pipeline_type': 'intelligent_auto_selection',
+            'model_configurations': current_models,
+            'all_model_types_tested': intelligent_pipeline.ALL_MODEL_TYPES,
+            'last_check': monitoring_df.iloc[0]['check_date'] if not monitoring_df.empty else None
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/training/intelligent/trigger', methods=['POST'])
+def trigger_intelligent_training():
+    """Manually trigger intelligent training pipeline - NEW ENDPOINT"""
+    try:
+        if not intelligent_pipeline:
+            return jsonify({'error': 'Intelligent pipeline not available'}), 503
+        
+        # Run training in background thread to avoid blocking
+        def run_training():
+            intelligent_pipeline.run_training_pipeline(force_training=True)
+        
+        training_thread = threading.Thread(target=run_training, daemon=True)
+        training_thread.start()
+        
+        return jsonify({
+            'status': 'FORCED Intelligent Training Pipeline Started',
+            'pipeline_type': 'intelligent_auto_selection',
+            'models_to_test': ['ARIMA', 'XGBoost', 'LSTM'],
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/training/intelligent/history')
+@windows_cache('medium')
+def get_intelligent_training_history():
+    """Get comprehensive intelligent training history - NEW ENDPOINT"""
+    try:
+        if not intelligent_pipeline:
+            return jsonify({'error': 'Intelligent pipeline not available'}), 503
+        
+        conn = sqlite3.connect(intelligent_pipeline.performance_db)
+        
+        # Get performance history with model type breakdown
+        perf_query = '''
+            SELECT model_type, metric_type, region, rmse, mae, mape, 
+                   training_date, data_size, is_active
+            FROM model_performance 
+            ORDER BY training_date DESC LIMIT 200
+        '''
+        perf_df = pd.read_sql_query(perf_query, conn)
+        
+        # Get data monitoring history
+        monitor_query = '''
+            SELECT check_date, data_size, new_records, training_triggered
+            FROM data_monitoring 
+            ORDER BY check_date DESC LIMIT 50
+        '''
+        monitor_df = pd.read_sql_query(monitor_query, conn)
+        
+        # Get model performance comparison
+        comparison_query = '''
+            SELECT region, model_type, metric_type, MIN(rmse) as best_rmse, 
+                   AVG(rmse) as avg_rmse, COUNT(*) as training_count
+            FROM model_performance 
+            GROUP BY region, model_type, metric_type
+            ORDER BY region, metric_type, best_rmse
+        '''
+        comparison_df = pd.read_sql_query(comparison_query, conn)
+        
+        conn.close()
+        
+        return jsonify({
+            'performance_history': perf_df.to_dict('records'),
+            'monitoring_history': monitor_df.to_dict('records'),
+            'model_comparison': comparison_df.to_dict('records'),
+            'pipeline_type': 'intelligent_auto_selection'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/training/intelligent/config')
+def get_intelligent_training_config():
+    """Get intelligent training configuration - NEW ENDPOINT"""
+    try:
+        if not intelligent_pipeline:
+            return jsonify({'error': 'Intelligent pipeline not available'}), 503
+        
+        return jsonify({
+            'pipeline_type': 'intelligent_auto_selection',
+            'current_cpu_models': intelligent_pipeline.CPU_MODELS,
+            'current_users_models': intelligent_pipeline.USERS_MODELS,
+            'all_model_types_tested': intelligent_pipeline.ALL_MODEL_TYPES,
+            'data_path': intelligent_pipeline.data_path,
+            'models_directories': {
+                'cpu': str(intelligent_pipeline.models_dir),
+                'users': str(intelligent_pipeline.users_models_dir)
+            },
+            'performance_db': intelligent_pipeline.performance_db,
+            'auto_model_selection': True,
+            'evaluation_metrics': ['RMSE', 'MAE', 'MAPE']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/training/intelligent/model-comparison')
+@windows_cache('medium')
+def get_intelligent_model_comparison():
+    """Get detailed intelligent model performance comparison - NEW ENDPOINT"""
+    try:
+        if not intelligent_pipeline:
+            return jsonify({'error': 'Intelligent pipeline not available'}), 503
+        
+        conn = sqlite3.connect(intelligent_pipeline.performance_db)
+        
+        # Get latest performance for each model type per region
+        comparison_query = '''
+            WITH latest_training AS (
+                SELECT region, metric_type, model_type, rmse, mae, mape,
+                       ROW_NUMBER() OVER (PARTITION BY region, metric_type, model_type ORDER BY training_date DESC) as rn
+                FROM model_performance
+            )
+            SELECT region, metric_type, model_type, rmse, mae, mape
+            FROM latest_training
+            WHERE rn = 1
+            ORDER BY region, metric_type, rmse
+        '''
+        
+        comparison_df = pd.read_sql_query(comparison_query, conn)
+        
+        # Get currently active models
+        active_query = '''
+            SELECT region, metric_type, model_type, rmse, mae, mape
+            FROM model_performance
+            WHERE is_active = 1
+            ORDER BY region, metric_type
+        '''
+        
+        active_df = pd.read_sql_query(active_query, conn)
+        conn.close()
+        
+        return jsonify({
+            'all_model_comparison': comparison_df.to_dict('records'),
+            'currently_active': active_df.to_dict('records'),
+            'model_types_tested': intelligent_pipeline.ALL_MODEL_TYPES
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Update model comparison endpoints to use actual performance data when available
 @app.route('/api/forecast/comparison')
 @windows_cache('slow')
 def model_comparison():
+    """Get current model performance comparison from database or fallback to static"""
     try:
+        if intelligent_pipeline:
+            conn = sqlite3.connect(intelligent_pipeline.performance_db)
+            
+            # Get current active CPU models performance
+            cpu_query = '''
+                SELECT region, model_type, rmse, mae, mape
+                FROM model_performance
+                WHERE metric_type = 'cpu' AND is_active = 1
+            '''
+            
+            cpu_df = pd.read_sql_query(cpu_query, conn)
+            conn.close()
+            
+            if not cpu_df.empty:
+                # Format for API response
+                model_performance = {}
+                for _, row in cpu_df.iterrows():
+                    model_performance[row['region']] = {
+                        'model': row['model_type'],
+                        'rmse': float(row['rmse']),
+                        'mae': float(row['mae']),
+                        'mape': float(row['mape']) if pd.notna(row['mape']) else None
+                    }
+                
+                # Calculate summary statistics
+                all_rmse = [perf['rmse'] for perf in model_performance.values()]
+                all_mae = [perf['mae'] for perf in model_performance.values()]
+                
+                summary = {
+                    'regional_performance': model_performance,
+                    'overall_stats': {
+                        'avg_rmse': float(np.mean(all_rmse)),
+                        'avg_mae': float(np.mean(all_mae)),
+                        'best_rmse_region': min(model_performance.items(), key=lambda x: x[1]['rmse'])[0],
+                        'model_types_active': list(set([perf['model'] for perf in model_performance.values()]))
+                    },
+                    'selection_method': 'intelligent_auto_selection'
+                }
+                
+                return jsonify(summary)
+        
+        # Fallback to static performance data
         model_performance = {
             'East US': {'model': 'LSTM', 'rmse': 13.68, 'mae': 11.46},
             'North Europe': {'model': 'ARIMA', 'rmse': 15.90, 'mae': 14.25},
@@ -904,10 +1514,122 @@ def model_comparison():
                 'best_rmse_region': min(model_performance.items(), key=lambda x: x[1]['rmse'])[0],
                 'lstm_regions': [k for k, v in model_performance.items() if v['model'] == 'LSTM'],
                 'arima_regions': [k for k, v in model_performance.items() if v['model'] == 'ARIMA']
-            }
+            },
+            'selection_method': 'static_fallback'
         }
 
         return jsonify(summary)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/forecast/users/comparison')
+@windows_cache('slow')  
+def users_model_comparison():
+    """Get current user model performance comparison from database or fallback"""
+    try:
+        if intelligent_pipeline:
+            conn = sqlite3.connect(intelligent_pipeline.performance_db)
+            
+            # Get current active USERS models performance
+            users_query = '''
+                SELECT region, model_type, rmse, mae, mape
+                FROM model_performance
+                WHERE metric_type = 'users' AND is_active = 1
+            '''
+            
+            users_df = pd.read_sql_query(users_query, conn)
+            conn.close()
+            
+            if not users_df.empty:
+                # Format for API response
+                model_performance = {}
+                for _, row in users_df.iterrows():
+                    model_performance[row['region']] = {
+                        'model': row['model_type'],
+                        'rmse': float(row['rmse']),
+                        'mae': float(row['mae']),
+                        'mape': float(row['mape']) if pd.notna(row['mape']) else None
+                    }
+                
+                # Calculate summary statistics
+                all_rmse = [perf['rmse'] for perf in model_performance.values()]
+                all_mae = [perf['mae'] for perf in model_performance.values()]
+                
+                summary = {
+                    'regional_performance': model_performance,
+                    'overall_stats': {
+                        'avg_rmse': float(np.mean(all_rmse)),
+                        'avg_mae': float(np.mean(all_mae)),
+                        'best_rmse_region': min(model_performance.items(), key=lambda x: x[1]['rmse'])[0],
+                        'model_types_active': list(set([perf['model'] for perf in model_performance.values()]))
+                    },
+                    'selection_method': 'intelligent_auto_selection'
+                }
+                
+                return jsonify(summary)
+                
+        # Fallback to static performance data
+        comp = {
+            'East US':        {'model': 'LSTM',    'rmse': 162.67, 'mae': 127.56},
+            'North Europe':   {'model': 'XGBoost', 'rmse': 195.64, 'mae': 161.28},
+            'Southeast Asia': {'model': 'ARIMA',   'rmse': 108.65, 'mae':  85.84},
+            'West US':        {'model': 'XGBoost', 'rmse': 198.01, 'mae': 169.96},
+        }
+        all_rmse = [v['rmse'] for v in comp.values()]
+        all_mae  = [v['mae']  for v in comp.values()]
+        return jsonify({
+            'regional_performance': comp,
+            'overall_stats': {
+                'avg_rmse': float(np.mean(all_rmse)),
+                'avg_mae':  float(np.mean(all_mae)),
+                'best_rmse_region': min(comp, key=lambda k: comp[k]['rmse']),
+                'lstm_regions':  [k for k, v in comp.items() if v['model'] == 'LSTM'],
+                'arima_regions': [k for k, v in comp.items() if v['model'] == 'ARIMA'],
+                'xgboost_regions': [k for k, v in comp.items() if v['model'] == 'XGBoost'],
+            },
+            'selection_method': 'static_fallback'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Debug endpoint for user models
+@app.route('/api/forecast/users/debug')
+def users_forecast_debug():
+    """Enhanced debug endpoint to check user model loading and feature availability."""
+    try:
+        debug_info = {
+            'user_model_directory': USER_MODEL_DIR,
+            'directory_exists': os.path.exists(USER_MODEL_DIR),
+            'available_regions': list(FINAL_SELECTION_USERS.keys()),
+            'loaded_user_models': list(loaded_user_models.keys()),
+            'loaded_user_scalers': list(loaded_user_scalers.keys()),
+            'region_data_available': list(region_dfs.keys()),
+            'ml_available': ml_available,
+            'model_selection': FINAL_SELECTION_USERS,
+            'intelligent_pipeline_available': intelligent_pipeline is not None
+        }
+        
+        # List files in directory if it exists
+        if os.path.exists(USER_MODEL_DIR):
+            try:
+                files = os.listdir(USER_MODEL_DIR)
+                debug_info['directory_contents'] = files
+            except Exception as e:
+                debug_info['directory_list_error'] = str(e)
+        
+        # Check data columns for each region
+        data_summary = {}
+        for region, data in region_dfs.items():
+            data_summary[region] = {
+                'columns': list(data.columns),
+                'shape': data.shape,
+                'users_active_range': [float(data['users_active'].min()), 
+                                     float(data['users_active'].max())] if 'users_active' in data.columns else None,
+                'last_date': str(data.index[-1]) if len(data) > 0 else None
+            }
+        debug_info['region_data_summary'] = data_summary
+        
+        return jsonify(debug_info)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -925,7 +1647,8 @@ def forecast_debug():
             'loaded_scalers': list(loaded_scalers.keys()),
             'region_data_available': list(region_dfs.keys()),
             'ml_available': ml_available,
-            'model_selection': FINAL_SELECTION
+            'model_selection': FINAL_SELECTION,
+            'intelligent_pipeline_available': intelligent_pipeline is not None
         }
 
         # Determine what regions would be processed
@@ -952,7 +1675,8 @@ def health_check():
         'data_records': len(df),
         'platform': 'Windows Compatible',
         'boot_time': f"{time.time() - start_boot_time:.2f}s",
-        'regional_data': list(region_dfs.keys())
+        'regional_data': list(region_dfs.keys()),
+        'intelligent_pipeline': intelligent_pipeline is not None
     })
 
 @app.route('/api/cache/stats')
@@ -983,7 +1707,10 @@ def not_found(e):
         '/api/correlations/bubble', '/api/holiday/analysis', '/api/holiday/distribution',
         '/api/holiday/calendar', '/api/engagement/efficiency', '/api/engagement/trends',
         '/api/engagement/bubble', '/api/filters/options', '/api/data/summary',
-        '/api/forecast/models', '/api/forecast/predict', '/api/forecast/comparison', '/api/forecast/debug'
+        '/api/forecast/models', '/api/forecast/predict', '/api/forecast/comparison', '/api/forecast/debug',
+        '/api/forecast/users/models', '/api/forecast/users/predict', '/api/forecast/users/comparison',
+        '/api/training/intelligent/status', '/api/training/intelligent/trigger', '/api/training/intelligent/history',
+        '/api/training/intelligent/config', '/api/training/intelligent/model-comparison'
     ]}), 404
 
 @app.errorhandler(500)
@@ -996,13 +1723,15 @@ start_boot_time = time.time()
 
 if __name__ == '__main__':
     boot_time = time.time() - start_boot_time
-    print(f"⚡ FIXED Windows Ultra-Fast Azure API Server Ready in {boot_time:.2f}s!")
+    print(f"⚡ COMPLETE Windows Ultra-Fast Azure API Server Ready in {boot_time:.2f}s!")
     print(f"📊 {len(df):,} records loaded with optimized caching")
     print(f"🚀 ML Models: {len(loaded_models)}/{len(FINAL_SELECTION)} loaded")
+    print(f"👥 User Models: {len(loaded_user_models)}/{len(FINAL_SELECTION_USERS)} loaded")
     print(f"🔍 Regional Data: {list(region_dfs.keys())}")
+    print(f"🤖 Intelligent Pipeline: {'✅ Connected' if intelligent_pipeline else '❌ Not Available'}")
     print("🔥 Windows Optimizations: Threading Cache | Parallel Forecasting | Memory Optimized")
-    print("🪟 Platform: Windows Compatible | Forecasting Issues FIXED")
-    print("🔧 Debug endpoint available at: /api/forecast/debug")
+    print("🪟 Platform: Windows Compatible | All Issues FIXED")
+    print("🔧 Debug endpoints: /api/forecast/debug | /api/forecast/users/debug")
 
     # Production server with optimized settings
     app.run(
