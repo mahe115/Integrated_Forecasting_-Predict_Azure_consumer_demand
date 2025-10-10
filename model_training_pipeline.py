@@ -23,27 +23,45 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 
-# Setup logging
+# # Setup logging
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     handlers=[
+#         logging.FileHandler('pipeline.log'),
+#         logging.StreamHandler()
+#     ]
+# )
+# Set your desired log directory
+log_dir = "D:/infosysspringboard projects/project1-1stmilestine/AZURE_BACKEND_TEAM-B/backend automated reports/pipelogs files"
+os.makedirs(log_dir, exist_ok=True)
+log_file_path = os.path.join(log_dir, "pipeline.log")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('pipeline.log'),
+        logging.FileHandler(log_file_path),
         logging.StreamHandler()
     ]
 )
 
 class ModelTrainingPipeline:
     def __init__(self, data_path='D:/infosysspringboard projects/project1-1stmilestine/AZURE_BACKEND_TEAM-B/data/processed/cleaned_merged.csv', 
-                 models_dir='D:/infosysspringboard projects/project1-1stmilestine/AZURE_BACKEND_TEAM-B/notebooks/models', 
-                 users_models_dir='D:/infosysspringboard projects/project1-1stmilestine/AZURE_BACKEND_TEAM-B/notebooks/users_active_forecasting_models',
+                 models_dir='D:/infosysspringboard projects/project1-1stmilestine/AZURE_BACKEND_TEAM-B/models/cpu_forecasting_models', 
+                 users_models_dir='D:/infosysspringboard projects/project1-1stmilestine/AZURE_BACKEND_TEAM-B/models/users_active_forecasting_models',
+                 storage_models_dir='D:/infosysspringboard projects/project1-1stmilestine/AZURE_BACKEND_TEAM-B/models/storage_forecasting_models',
                  performance_db='model_performance.db'):
         
         self.data_path = data_path
         self.models_dir = Path(models_dir)
         self.users_models_dir = Path(users_models_dir)
+        self.storage_models_dir = Path(storage_models_dir)
         self.performance_db = performance_db
         
+
+
+
         # All available model types to test
         self.ALL_MODEL_TYPES = ['ARIMA', 'XGBoost', 'LSTM']
         
@@ -61,6 +79,14 @@ class ModelTrainingPipeline:
             'Southeast Asia': 'ARIMA', 
             'West US': 'XGBoost'
         }
+
+        # NEW: Storage usage models configuration
+        self.STORAGE_MODELS = {
+            'East US': 'LSTM',
+            'North Europe': 'XGBoost', 
+            'Southeast Asia': 'ARIMA',
+            'West US': 'LSTM'
+          }
         
         self.init_database()
         logging.info("🤖 Intelligent Model Training Pipeline initialized")
@@ -98,6 +124,20 @@ class ModelTrainingPipeline:
                 training_triggered BOOLEAN
             )
         ''')
+
+        cursor.execute('''
+             CREATE TABLE IF NOT EXISTS best_model (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  region TEXT,
+                  metric_type TEXT,
+                  model_type TEXT,
+                  rmse REAL,
+                  mae REAL,
+                  mape REAL,
+                  updated_date TIMESTAMP
+                )
+        ''')
+
         
         conn.commit()
         conn.close()
@@ -177,7 +217,8 @@ class ModelTrainingPipeline:
                 'cloud_market_demand': 'first',
                 'holiday': 'max'
             }).reset_index()
-        else:  # users_active
+        elif target_metric == 'users_active':
+              # users_active
             region_daily = df.groupby(['region', 'date']).agg({
                 'users_active': 'sum',
                 'usage_cpu': 'mean',
@@ -186,6 +227,15 @@ class ModelTrainingPipeline:
                 'cloud_market_demand': 'first',
                 'holiday': 'max'
             }).reset_index()
+        else:  # NEW: usage_storage
+           region_daily = df.groupby(['region', 'date']).agg({
+            'usage_storage': 'mean',  # Average storage usage per day
+            'usage_cpu': 'mean',
+            'users_active': 'mean',
+            'economic_index': 'first',
+            'cloud_market_demand': 'first',
+            'holiday': 'max'
+        }).reset_index()
         
         # Create region-specific DataFrames
         region_dfs = {}
@@ -254,12 +304,19 @@ class ModelTrainingPipeline:
                 features = [f'lag1_{target_col}', f'lag7_{target_col}', f'roll7_mean_{target_col}',
                            'usage_storage', 'users_active', 'economic_index', 
                            'cloud_market_demand', 'dow', 'holiday']
-            else:  # users_active
+                
+            elif target_col == 'users_active':
                 df_xgb['lag1_cpu'] = df_xgb['usage_cpu'].shift(1)
                 df_xgb['lag1_storage'] = df_xgb['usage_storage'].shift(1)
                 features = [f'lag1_{target_col}', f'lag7_{target_col}', f'roll7_mean_{target_col}',
                            'lag1_cpu', 'lag1_storage', 'usage_cpu', 'usage_storage',
                            'economic_index', 'dow', 'holiday']
+            else:  # NEW: usage_storage
+               df_xgb['lag1_cpu'] = df_xgb['usage_cpu'].shift(1)
+               df_xgb['lag1_users'] = df_xgb['users_active'].shift(1)
+               features = [f'lag1_{target_col}', f'lag7_{target_col}', f'roll7_mean_{target_col}',
+                          'lag1_cpu', 'lag1_users', 'usage_cpu', 'users_active',
+                          'economic_index', 'dow', 'holiday']
             
             df_xgb = df_xgb.dropna()
             
@@ -398,7 +455,12 @@ class ModelTrainingPipeline:
 
     def train_all_models_for_region(self, region_data, region, metric_type='cpu'):
         """Train ALL model types for a region and return performance comparison"""
-        target_col = 'usage_cpu' if metric_type == 'cpu' else 'users_active'
+        if metric_type == 'cpu':
+           target_col = 'usage_cpu'
+        elif metric_type == 'users':
+           target_col = 'users_active'
+        else:  # storage
+           target_col = 'usage_storage'
         
         logging.info(f"  🎯 Training ALL models for {region} ({metric_type.upper()})")
         
@@ -454,10 +516,55 @@ class ModelTrainingPipeline:
         else:
             logging.error(f"  ❌ ALL models failed for {region}")
             return None, None, model_results
+    def upsert_best_model(self, region, metric_type, model_type, rmse, mae, mape):
+         """Insert or update the best model record in best_model table"""
+         try:
+            conn = sqlite3.connect(self.performance_db)
+            cursor = conn.cursor()
+        
+            # Check if record for region and metric_type exists
+            cursor.execute('''
+                SELECT id, rmse FROM best_model
+                WHERE region = ? AND metric_type = ?
+            ''', (region, metric_type))
+            record = cursor.fetchone()
+        
+            now = datetime.now()
+        
+            if record is None:
+                # Insert new record
+                cursor.execute('''
+                    INSERT INTO best_model (region, metric_type, model_type, rmse, mae, mape, updated_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (region, metric_type, model_type, rmse, mae, mape, now))
+            else:
+                rec_id, existing_rmse = record
+                # Update only if new rmse is better or equal (optional)
+                if rmse <= existing_rmse:
+                    cursor.execute('''
+                        UPDATE best_model
+                        SET model_type = ?, rmse = ?, mae = ?, mape = ?, updated_date = ?
+                        WHERE id = ?
+                    ''', (model_type, rmse, mae, mape, now, rec_id))
+        
+            conn.commit()
+            conn.close()
+            logging.info(f"  💾 Best model record upserted for {region} {metric_type} - {model_type} (RMSE: {rmse:.2f})")
+            return True
+         except Exception as e:
+             logging.error(f"  ❌ Error upserting best model record: {e}")
+             return False
+
 
     def train_models_for_metric(self, region_dfs, metric_type='cpu'):
         """Train all models for all regions for a specific metric"""
-        models_dir = self.models_dir if metric_type == 'cpu' else self.users_models_dir
+        if metric_type == 'cpu':
+           models_dir = self.models_dir
+        elif metric_type == 'users':
+           models_dir = self.users_models_dir  
+        else:  # storage
+           models_dir = self.storage_models_dir
+
         results = {}
         
         logging.info(f"🚀 Training {metric_type.upper()} models for all regions...")
@@ -472,6 +579,12 @@ class ModelTrainingPipeline:
             if best_model_name and best_model_info:
                 # Get current best performance (if exists)
                 current_best_rmse = self.get_current_best_rmse(region, metric_type)
+
+                # NEW ─────────────
+                model_file_expected = models_dir / f"{region.replace(' ', '')}{best_model_name}{metric_type}.pkl"
+                if current_best_rmse is not None and not model_file_expected.exists():
+                    current_best_rmse = float('inf')      # Force redeploy if file is gone
+                # ─────────────────
                 
                 # Check if new model is better
                 new_rmse = best_model_info['rmse']
@@ -491,9 +604,11 @@ class ModelTrainingPipeline:
                     if success:
                         # Update model configuration
                         if metric_type == 'cpu':
-                            self.CPU_MODELS[region] = best_model_name
-                        else:
-                            self.USERS_MODELS[region] = best_model_name
+                           self.CPU_MODELS[region] = best_model_name
+                        elif metric_type == 'users':
+                           self.USERS_MODELS[region] = best_model_name
+                        else:  # storage
+                           self.STORAGE_MODELS[region] = best_model_name  # NEW
                         
                         # Record performance
                         self.record_performance(
@@ -501,6 +616,10 @@ class ModelTrainingPipeline:
                             new_rmse, best_model_info['mae'], best_model_info['mape'],
                             len(region_data), True
                         )
+
+                         # NEW - update best_model table
+                        self.upsert_best_model(region, metric_type, best_model_name,
+                               new_rmse, best_model_info['mae'], best_model_info['mape'])
                         
                         improvement_text = f"(improved from {current_best_rmse:.2f})" if current_best_rmse else "(new)"
                         logging.info(f"  ✅ DEPLOYED: {best_model_name} model - RMSE: {new_rmse:.2f} {improvement_text}")
@@ -571,25 +690,39 @@ class ModelTrainingPipeline:
             region_clean = region.replace(' ', '')
             
             if model_type == 'ARIMA':
-                model_path = models_dir / f"{region_clean}ARIMAmodel.pkl"
-                with open(model_path, 'wb') as f:
-                    pickle.dump(model, f)
+               if metric_type == 'cpu':
+                  model_path = models_dir / f"{region_clean}_ARIMA_cpu.pkl"
+                  
+               elif metric_type == 'storage':
+                    model_path = models_dir / f"{region_clean}_ARIMA_storage.pkl"
+                    
+               else:      
+                   model_path = models_dir / f"{region_clean}_ARIMA_users.pkl"
+               with open(model_path, 'wb') as f:
+                  pickle.dump(model, f)
+                   
+                   
                     
             elif model_type == 'XGBoost':
                 if metric_type == 'cpu':
-                    model_path = models_dir / f"{region_clean}XGBoostmodel.pkl"
+                    model_path = models_dir / f"{region_clean}_XGBoost_cpu.pkl"
+                elif metric_type == 'storage':
+                    model_path = models_dir / f"{region_clean}_XGBoost_storage.pkl"
                 else:
-                    model_path = models_dir / f"{region_clean}XGBoostusers.pkl"
+                    model_path = models_dir / f"{region_clean}_XGBoost_users.pkl"
                 with open(model_path, 'wb') as f:
                     pickle.dump(model, f)
                     
             elif model_type == 'LSTM':
                 if metric_type == 'cpu':
-                    model_path = models_dir / f"{region_clean}LSTMmodel.h5"
-                    scaler_path = models_dir / f"{region_clean}LSTMscaler.pkl"
+                    model_path = models_dir / f"{region_clean}_LSTMmodel_cpu.h5"
+                    scaler_path = models_dir / f"{region_clean}_LSTMscaler_cpu.pkl"
+                elif metric_type == 'storage':
+                     model_path = models_dir / f"{region_clean}_LSTMmodel_storage.h5"
+                     scaler_path = models_dir / f"{region_clean}LSTMscaler_storage.pkl"
                 else:
-                    model_path = models_dir / f"{region_clean}LSTMusers.h5"
-                    scaler_path = models_dir / f"{region_clean}scalerusers.pkl"
+                    model_path = models_dir / f"{region_clean}_LSTMmodel_users.h5"
+                    scaler_path = models_dir / f"{region_clean}_LSTMscaler_users.pkl"
                 
                 model.save(model_path)
                 with open(scaler_path, 'wb') as f:
@@ -622,9 +755,10 @@ class ModelTrainingPipeline:
                 (model_type, metric_type, region, rmse, mae, mape, training_date, data_size, is_active)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (model_type, metric_type, region, rmse, mae, mape, datetime.now(), data_size, is_active))
-            
+
             conn.commit()
             conn.close()
+            logging.info(f"  💾 Performance recorded: {model_type} for {region} ({metric_type}) - RMSE: {rmse:.2f}")
             
         except Exception as e:
             logging.error(f"❌ Error recording performance: {e}")
@@ -658,6 +792,7 @@ class ModelTrainingPipeline:
         logging.info("📊 Preparing regional data...")
         cpu_region_dfs = self.prepare_region_data(df, 'usage_cpu')
         users_region_dfs = self.prepare_region_data(df, 'users_active')
+        storage_region_dfs = self.prepare_region_data(df, 'usage_storage')
         
         logging.info(f"✅ Prepared data for {len(cpu_region_dfs)} regions")
         
@@ -672,23 +807,35 @@ class ModelTrainingPipeline:
         logging.info("👥 TRAINING ACTIVE USERS MODELS")
         logging.info("="*60)
         users_results = self.train_models_for_metric(users_region_dfs, 'users')
+
+
+        # NEW: Train Storage models
+        logging.info("\n" + "="*60)
+        logging.info("👥 TRAINING Storage usageghey MODELS")
+        logging.info("="*60)
+        storage_results = self.train_models_for_metric(storage_region_dfs, 'storage')
         
         # Generate comprehensive report
-        self.generate_comprehensive_report(cpu_results, users_results, new_records)
+        self.generate_comprehensive_report(cpu_results, users_results,storage_results, new_records)
         
         total_time = time.time() - start_time
         logging.info("\n" + "="*60)
         logging.info(f"✅ INTELLIGENT training pipeline completed in {total_time:.2f} seconds")
         logging.info("="*60)
 
-    def generate_comprehensive_report(self, cpu_results, users_results, new_records):
+    def generate_comprehensive_report(self, cpu_results, users_results,storage_results, new_records):
         """Generate comprehensive training summary report"""
         
         # Count deployments and improvements
         cpu_deployed = sum(1 for r in cpu_results.values() if r.get('deployed', False))
         users_deployed = sum(1 for r in users_results.values() if r.get('deployed', False))
+        storage_deployed = sum(1 for r in storage_results.values() if r.get('deployed', False))  # NEW
+
         cpu_improved = sum(1 for r in cpu_results.values() if r.get('improved', False))
         users_improved = sum(1 for r in users_results.values() if r.get('improved', False))
+        storage_improved = sum(1 for r in storage_results.values() if r.get('improved', False))  # NEW
+
+
         
         report = {
             'timestamp': datetime.now().isoformat(),
@@ -696,22 +843,29 @@ class ModelTrainingPipeline:
             'new_records': new_records,
             'cpu_results': cpu_results,
             'users_results': users_results,
+            'storage_results': storage_results,  # NEW
             'summary': {
                 'cpu_models_deployed': cpu_deployed,
                 'users_models_deployed': users_deployed,
+                'storage_models_deployed': storage_deployed,  # NEW
                 'cpu_models_improved': cpu_improved,
                 'users_models_improved': users_improved,
-                'total_models_trained': len(cpu_results) * 3 + len(users_results) * 3,  # 3 models per region
+                'storage_models_improved': storage_improved,  # NEW
+                'total_models_trained': len(cpu_results) * 3 + len(users_results) * 3 + len(storage_results) * 3,  # 3 models per region
                 'total_regions': len(cpu_results)
             },
             'current_best_models': {
                 'cpu': self.CPU_MODELS,
-                'users': self.USERS_MODELS
+                'users': self.USERS_MODELS,
+                'storage': self.STORAGE_MODELS  # NEW
             }
         }
-        
+        # Create reports directory structure
+        reports_dir = Path("D:/infosysspringboard projects/project1-1stmilestine/AZURE_BACKEND_TEAM-B/backend automated reports")
+        reports_dir.mkdir(parents=True, exist_ok=True)
         # Save detailed report
-        report_path = f"intelligent_training_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        report_path = reports_dir / f"intelligent_training_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
         with open(report_path, 'w') as f:
             json.dump(report, f, indent=2, default=str)
         
@@ -720,6 +874,8 @@ class ModelTrainingPipeline:
         logging.info("="*40)
         logging.info(f"🖥️  CPU Models - Deployed: {cpu_deployed}, Improved: {cpu_improved}")
         logging.info(f"👥 Users Models - Deployed: {users_deployed}, Improved: {users_improved}")
+        logging.info(f"Storage  Models - Deployed: {storage_deployed}, Improved: {storage_improved}")
+
         logging.info(f"📊 Total Models Trained: {report['summary']['total_models_trained']}")
         logging.info(f"🎯 Total Regions: {report['summary']['total_regions']}")
         
@@ -735,6 +891,14 @@ class ModelTrainingPipeline:
             status = "✅ DEPLOYED" if users_results.get(region, {}).get('deployed', False) else "⚡ CURRENT"
             rmse = users_results.get(region, {}).get('rmse', 'N/A')
             logging.info(f"  {region}: {model} {status} (RMSE: {rmse})")
+
+
+        logging.info("Storage Models:")
+        for region, model in self.STORAGE_MODELS.items():
+            status = "✅ DEPLOYED" if storage_results.get(region, {}).get('deployed', False) else "⚡ CURRENT"
+            rmse = storage_results.get(region, {}).get('rmse', 'N/A')
+            logging.info(f"  {region}: {model} {status} (RMSE: {rmse})")
+
         
         logging.info(f"\n💾 Detailed report saved: {report_path}")
 

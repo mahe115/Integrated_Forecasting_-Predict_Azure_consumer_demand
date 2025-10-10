@@ -9,7 +9,7 @@ def start_pipeline_service():
     # Start the main API server
     print("Starting FastAPI server...")
     api_process = subprocess.Popen([
-        sys.executable, "ultra_fast_api_multiprocessing.py"
+        sys.executable, "optimised_backend_app.py"
     ])
     
     # Start the training scheduler
