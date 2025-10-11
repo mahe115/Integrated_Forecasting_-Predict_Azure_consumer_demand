@@ -182,10 +182,10 @@ with st.sidebar:
         end_date = None
 
 # Tab Navigation
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "📊 Overview", "📈 Trends", "🌍 Regional", "⚡ Resources", 
     "🔗 Correlations", "👥 User Engagement", "🤖 Forecasting", 
-    "🏗️ Model Training", "🏗️ Capacity Planning", "🔍 Monitoring"
+    "🏗️ Models Monitoring", "🏗️ Capacity Planning"
 ])
 
 
@@ -1148,7 +1148,7 @@ with tab3:
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                         <div style="display: flex; align-items: center;">
                             <span style="font-size: 1.2rem; margin-right: 0.5rem;">{rank_emoji}</span>
-                            <strong>{row['region']}</strong>
+                            <strong style="color: #333333;">{row['region']}</strong>
                         </div>
                         <span style="font-weight: bold; color: {colors[idx % len(colors)]};">
                             {row['efficiency_score']:.0f}%
@@ -1665,11 +1665,11 @@ with tab4:
                                        border-radius: 8px; border-left: 4px solid {color};
                                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <strong style="color: {color};">{resource}</strong>
+                                    <strong style="color: #222;">{resource}</strong>
                                     <span style="color: {performance_color}; font-weight: bold;">{performance_status}</span>
                                 </div>
                                 <hr style="margin: 0.5rem 0; border-color: #eee;">
-                                <div style="font-size: 0.9rem;">
+                                <div style="font-size: 0.9rem; color: #222;">
                                     <div>📊 Avg CPU: {cpu_avg:.1f}%</div>
                                     <div>⚡ Peak CPU: {cpu_peak:.1f}%</div>
                                     <div>🎯 Utilization: {utilization_rate:.1f}%</div>
@@ -1914,7 +1914,7 @@ with tab4:
                 try:
                     for resource in selected_resources:
                         resource_data = df_filtered[df_filtered['resource_type'] == resource]
-                        color = resource_colors.get(resource, '#3498db')
+                        color = resource_colors.get(resource, "#4E9C47")
 
                         if not resource_data.empty and len(resource_data) > 0:
                             # FIXED: Safe current and max calculation
@@ -1957,15 +1957,15 @@ with tab4:
                             st.markdown(f"""
                             <div style="background: white; padding: 1rem; margin: 0.5rem 0; 
                                        border-radius: 8px; border-left: 4px solid {color};
-                                       box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                       box-shadow: 0 2px 4px rgba(0,0,0,0.1);" color: #111;>
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                                     <strong style="color: {color};">{resource}</strong>
                                     <span style="color: {status_color}; font-weight: bold; font-size: 0.9rem;">{status}</span>
                                 </div>
-                                <div style="font-size: 0.9rem;">
+                                <div style="font-size: 0.95rem; color: #111;">
                                     <div>Current: {current_cpu:.1f}%</div>
                                     <div>Peak: {max_cpu:.1f}%</div>
-                                    <div style="margin-top: 0.3rem; font-size: 0.8rem; color: #666;">
+                                    <div style="margin-top: 0.3rem; font-size: 0.85rem; color: #222;">
                                         Time to Capacity:<br><strong>{capacity_projection}</strong>
                                     </div>
                                 </div>
@@ -2209,19 +2209,19 @@ with tab4:
                         priority_color = priority_colors.get(rec['priority'], '#3498db')
 
                         st.markdown(f"""
-                        <div style="background: white; padding: 1rem; border-radius: 8px;
+                        <div style="background: #ffffff; padding: 1rem; border-radius: 8px;
                                    border-left: 4px solid {priority_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                                   margin-bottom: 1rem;">
+                                   margin-bottom: 1rem; color: #000000;">
                             <div style="color: {priority_color}; font-weight: bold; margin-bottom: 0.5rem;">
                                 {rec['type']}
                             </div>
                             <div style="font-weight: bold; margin-bottom: 0.3rem;">
                                 {rec['resource']}
                             </div>
-                            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">
+                            <div style="font-size: 0.9rem; color: #333333; margin-bottom: 0.5rem;">
                                 {rec['message']}
                             </div>
-                            <div style="background: {priority_color}22; padding: 0.5rem; border-radius: 4px;">
+                            <div style="background: {priority_color}22; padding: 0.5rem; border-radius: 4px; color: #000000;">
                                 <strong>Action:</strong> {rec['action']}
                             </div>
                         </div>
@@ -2388,7 +2388,7 @@ with tab5:
                 zmax=1,
                 text=correlation_matrix.values.round(3),
                 texttemplate='%{text}',
-                textfont={"size": 12, "color": "white"},
+                textfont={"size": 12},
                 hoverongaps=False,
                 colorbar=dict(
                     title="Correlation Coefficient",
@@ -2407,18 +2407,21 @@ with tab5:
 
             # Add significance markers if p-values are shown
             if show_p_values and 'significance_mask' in locals():
-                for i, row in enumerate(correlation_matrix.index):
-                    for j, col in enumerate(correlation_matrix.columns):
-                        try:
-                            if significance_mask.iloc[i, j] and abs(correlation_matrix.iloc[i, j]) >= min_correlation:
-                                fig_heatmap.add_shape(
-                                    type="rect",
-                                    x0=j-0.4, y0=i-0.4, x1=j+0.4, y1=i+0.4,
-                                    line=dict(color="yellow", width=3),
-                                    fillcolor="rgba(0,0,0,0)"
-                                )
-                        except:
+               for i, row in enumerate(correlation_matrix.index):
+                   for j, col in enumerate(correlation_matrix.columns):
+                       try:
+                           if significance_mask.iloc[i, j] and abs(correlation_matrix.iloc[i, j]) >= min_correlation:
+                               # ✅ FIXED: Use border-only markers instead of filled rectangles
+                               fig_heatmap.add_shape(
+                                 type="rect",
+                                 x0=j-0.45, y0=i-0.45, x1=j+0.45, y1=i+0.45,
+                                 line=dict(color="gold", width=2),  # ✅ Visible border
+                                 fillcolor="rgba(0,0,0,0)",  # ✅ Transparent fill
+                                 opacity=1.0  # ✅ Make border fully visible
+                             )
+                       except:
                             continue  # Skip if significance calculation failed
+
 
             fig_heatmap.update_layout(
                 title=f"Correlation Matrix ({correlation_method.title()} Method)",
@@ -3559,10 +3562,10 @@ with tab7:
                 status = "✅" if info['loaded'] else "❌"
                 color = "#d4edda" if info['loaded'] else "#f8d7da"
                 st.markdown(f"""
-                    <div style="background-color:{color}; padding:10px; border-radius:8px; 
+                    <div style="background-color:{color}; padding:10px; border-radius:8px;color:#333333; 
                                 text-align:center; border:1px solid #{'c3e6cb' if info['loaded'] else '#f5c6cb'}">
-                        <strong>{region}</strong><br>
-                        {info['model_type']} {status}
+                        <strong style="color:#333333;">{region}</strong><br>
+                        <span style="color:#333333;">{info['model_type']} {status}</span>
                     </div>
                 """, unsafe_allow_html=True)
         
@@ -5202,555 +5205,555 @@ with tab9:
                 st.info("🔗 Ensure the backend API is running and accessible")
     
    
-# STEP 3: ADD TAB 10 CODE AFTER TAB 9
+# # STEP 3: ADD TAB 10 CODE AFTER TAB 9
 
-with tab10:
-    st.markdown("# 🔍 Model Health Monitoring & Performance Analytics")
-    st.markdown("*Real-time model performance tracking, health assessment, and automated reporting system*")
+# with tab10:
+#     st.markdown("# 🔍 Model Health Monitoring & Performance Analytics")
+#     st.markdown("*Real-time model performance tracking, health assessment, and automated reporting system*")
     
-    # ===== MONITORING CONTROLS =====
-    st.markdown("---")
-    st.markdown("### 🎛️ Monitoring Dashboard Controls")
+#     # ===== MONITORING CONTROLS =====
+#     st.markdown("---")
+#     st.markdown("### 🎛️ Monitoring Dashboard Controls")
     
-    monitor_col1, monitor_col2, monitor_col3, monitor_col4 = st.columns(4)
+#     monitor_col1, monitor_col2, monitor_col3, monitor_col4 = st.columns(4)
     
-    with monitor_col1:
-        refresh_interval = st.selectbox(
-            "🔄 Refresh Interval",
-            options=[5, 15, 30, 60],
-            index=2,
-            format_func=lambda x: f"{x} seconds",
-            help="Auto-refresh interval for monitoring data"
-        )
+#     with monitor_col1:
+#         refresh_interval = st.selectbox(
+#             "🔄 Refresh Interval",
+#             options=[5, 15, 30, 60],
+#             index=2,
+#             format_func=lambda x: f"{x} seconds",
+#             help="Auto-refresh interval for monitoring data"
+#         )
     
-    with monitor_col2:
-        alert_threshold = st.slider(
-            "⚠️ Alert Threshold (%)",
-            min_value=60,
-            max_value=95,
-            value=75,
-            help="Accuracy threshold below which alerts are triggered"
-        )
+#     with monitor_col2:
+#         alert_threshold = st.slider(
+#             "⚠️ Alert Threshold (%)",
+#             min_value=60,
+#             max_value=95,
+#             value=75,
+#             help="Accuracy threshold below which alerts are triggered"
+#         )
     
-    with monitor_col3:
-        show_historical = st.toggle(
-            "📈 Show Historical",
-            value=True,
-            help="Include historical performance trends"
-        )
+#     with monitor_col3:
+#         show_historical = st.toggle(
+#             "📈 Show Historical",
+#             value=True,
+#             help="Include historical performance trends"
+#         )
     
-    with monitor_col4:
-        auto_monitoring = st.toggle(
-            "🤖 Auto Monitoring",
-            value=False,
-            help="Enable automatic monitoring and alerts"
-        )
+#     with monitor_col4:
+#         auto_monitoring = st.toggle(
+#             "🤖 Auto Monitoring",
+#             value=False,
+#             help="Enable automatic monitoring and alerts"
+#         )
     
-    # Auto refresh functionality
-    if auto_monitoring:
-        time.sleep(refresh_interval)
-        st.rerun()
+#     # Auto refresh functionality
+#     if auto_monitoring:
+#         time.sleep(refresh_interval)
+#         st.rerun()
     
-    # ===== MODEL HEALTH OVERVIEW =====
-    st.markdown("---")
-    st.markdown("### 🏥 Real-Time Model Health Dashboard")
+#     # ===== MODEL HEALTH OVERVIEW =====
+#     st.markdown("---")
+#     st.markdown("### 🏥 Real-Time Model Health Dashboard")
     
-    # Get monitoring data from API
-    monitoring_data = fetch_api('monitoring/accuracy')
+#     # Get monitoring data from API
+#     monitoring_data = fetch_api('monitoring/accuracy')
     
-    if monitoring_data:
-        model_health = monitoring_data.get('model_health', {})
-        accuracy_metrics = monitoring_data.get('accuracy_metrics', {})
-        retraining_status = monitoring_data.get('retraining_status', {})
+#     if monitoring_data:
+#         model_health = monitoring_data.get('model_health', {})
+#         accuracy_metrics = monitoring_data.get('accuracy_metrics', {})
+#         retraining_status = monitoring_data.get('retraining_status', {})
         
-        # ===== HEALTH STATUS OVERVIEW =====
-        health_col1, health_col2, health_col3, health_col4 = st.columns(4)
+#         # ===== HEALTH STATUS OVERVIEW =====
+#         health_col1, health_col2, health_col3, health_col4 = st.columns(4)
         
-        with health_col1:
-            overall_status = model_health.get('overall_status', 'UNKNOWN')
-            status_colors = {'HEALTHY': '🟢', 'WARNING': '🟡', 'CRITICAL': '🔴'}
-            status_color = status_colors.get(overall_status, '⚪')
-            avg_accuracy = model_health.get('average_accuracy', 0)
+#         with health_col1:
+#             overall_status = model_health.get('overall_status', 'UNKNOWN')
+#             status_colors = {'HEALTHY': '🟢', 'WARNING': '🟡', 'CRITICAL': '🔴'}
+#             status_color = status_colors.get(overall_status, '⚪')
+#             avg_accuracy = model_health.get('average_accuracy', 0)
             
-            st.metric(
-                "🎯 Overall Health",
-                f"{status_color} {overall_status}",
-                delta=f"{avg_accuracy:.1f}% avg accuracy",
-                help="Overall model health status across all regions"
-            )
+#             st.metric(
+#                 "🎯 Overall Health",
+#                 f"{status_color} {overall_status}",
+#                 delta=f"{avg_accuracy:.1f}% avg accuracy",
+#                 help="Overall model health status across all regions"
+#             )
         
-        with health_col2:
-            healthy_models = model_health.get('healthy_models', 0)
-            total_models = model_health.get('total_models', 0)
-            warning_models = model_health.get('warning_models', 0)
+#         with health_col2:
+#             healthy_models = model_health.get('healthy_models', 0)
+#             total_models = model_health.get('total_models', 0)
+#             warning_models = model_health.get('warning_models', 0)
             
-            st.metric(
-                "✅ Healthy Models",
-                f"{healthy_models}/{total_models}",
-                delta=f"{warning_models} need attention",
-                help="Number of models with good performance"
-            )
+#             st.metric(
+#                 "✅ Healthy Models",
+#                 f"{healthy_models}/{total_models}",
+#                 delta=f"{warning_models} need attention",
+#                 help="Number of models with good performance"
+#             )
         
-        with health_col3:
-            retrain_needed = len(retraining_status.get('regions_needing_retrain', []))
+#         with health_col3:
+#             retrain_needed = len(retraining_status.get('regions_needing_retrain', []))
             
-            st.metric(
-                "🔄 Retraining Queue",
-                retrain_needed,
-                delta="models flagged for retraining",
-                delta_color="inverse",
-                help="Number of models that need retraining"
-            )
+#             st.metric(
+#                 "🔄 Retraining Queue",
+#                 retrain_needed,
+#                 delta="models flagged for retraining",
+#                 delta_color="inverse",
+#                 help="Number of models that need retraining"
+#             )
         
-        with health_col4:
-            next_retrain = retraining_status.get('next_scheduled_retrain', 'Not scheduled')
-            if next_retrain != 'Not scheduled':
-                next_date = pd.to_datetime(next_retrain).strftime('%m/%d %H:%M')
-                st.metric(
-                    "⏰ Next Auto-Retrain",
-                    next_date,
-                    delta="scheduled",
-                    help="Next automatic retraining scheduled time"
-                )
-            else:
-                st.metric(
-                    "⏰ Next Auto-Retrain", 
-                    "Not scheduled",
-                    help="No automatic retraining currently scheduled"
-                )
+#         with health_col4:
+#             next_retrain = retraining_status.get('next_scheduled_retrain', 'Not scheduled')
+#             if next_retrain != 'Not scheduled':
+#                 next_date = pd.to_datetime(next_retrain).strftime('%m/%d %H:%M')
+#                 st.metric(
+#                     "⏰ Next Auto-Retrain",
+#                     next_date,
+#                     delta="scheduled",
+#                     help="Next automatic retraining scheduled time"
+#                 )
+#             else:
+#                 st.metric(
+#                     "⏰ Next Auto-Retrain", 
+#                     "Not scheduled",
+#                     help="No automatic retraining currently scheduled"
+#                 )
         
-        # ===== MODEL ACCURACY TRENDS =====
-        st.markdown("#### 📈 Model Accuracy Performance by Region")
+#         # ===== MODEL ACCURACY TRENDS =====
+#         st.markdown("#### 📈 Model Accuracy Performance by Region")
         
-        # Create accuracy comparison chart
-        fig_accuracy = go.Figure()
+#         # Create accuracy comparison chart
+#         fig_accuracy = go.Figure()
         
-        regions = list(accuracy_metrics.keys())
-        accuracies = [accuracy_metrics[region]['accuracy'] for region in regions]
-        trends = [accuracy_metrics[region]['trend'] for region in regions]
+#         regions = list(accuracy_metrics.keys())
+#         accuracies = [accuracy_metrics[region]['accuracy'] for region in regions]
+#         trends = [accuracy_metrics[region]['trend'] for region in regions]
         
-        # Color code based on accuracy level
-        colors = []
-        for accuracy in accuracies:
-            if accuracy >= 85:
-                colors.append('#27ae60')  # Green
-            elif accuracy >= alert_threshold:
-                colors.append('#f39c12')  # Orange  
-            else:
-                colors.append('#e74c3c')  # Red
+#         # Color code based on accuracy level
+#         colors = []
+#         for accuracy in accuracies:
+#             if accuracy >= 85:
+#                 colors.append('#27ae60')  # Green
+#             elif accuracy >= alert_threshold:
+#                 colors.append('#f39c12')  # Orange  
+#             else:
+#                 colors.append('#e74c3c')  # Red
         
-        # Add trend indicators
-        trend_symbols = {'improving': '↗️', 'stable': '➡️', 'declining': '↘️'}
-        hover_text = [
-            f"{region}<br>Accuracy: {accuracies[i]:.1f}%<br>Trend: {trend_symbols.get(trends[i], '➡️')} {trends[i].title()}<br>MAE: {accuracy_metrics[region]['mae']}<br>RMSE: {accuracy_metrics[region]['rmse']}"
-            for i, region in enumerate(regions)
-        ]
+#         # Add trend indicators
+#         trend_symbols = {'improving': '↗️', 'stable': '➡️', 'declining': '↘️'}
+#         hover_text = [
+#             f"{region}<br>Accuracy: {accuracies[i]:.1f}%<br>Trend: {trend_symbols.get(trends[i], '➡️')} {trends[i].title()}<br>MAE: {accuracy_metrics[region]['mae']}<br>RMSE: {accuracy_metrics[region]['rmse']}"
+#             for i, region in enumerate(regions)
+#         ]
         
         
-        fig_accuracy.add_trace(go.Bar(
-        x=regions,
-        y=accuracies,
-        marker_color=colors,
-        text=[f"{acc:.1f}%" for acc in accuracies],
-        textposition='auto',
-        customdata=hover_text,
-        hovertemplate='%{customdata}<extra></extra>'  # <-- ONLY ONE hovertemplate
-     ))
+#         fig_accuracy.add_trace(go.Bar(
+#         x=regions,
+#         y=accuracies,
+#         marker_color=colors,
+#         text=[f"{acc:.1f}%" for acc in accuracies],
+#         textposition='auto',
+#         customdata=hover_text,
+#         hovertemplate='%{customdata}<extra></extra>'  # <-- ONLY ONE hovertemplate
+#      ))
         
-        # Add threshold lines
-        fig_accuracy.add_hline(
-            y=85, 
-            line_dash="dash", 
-            line_color="green",
-            annotation_text="Healthy Threshold (85%)",
-            annotation_position="bottom right"
-        )
+#         # Add threshold lines
+#         fig_accuracy.add_hline(
+#             y=85, 
+#             line_dash="dash", 
+#             line_color="green",
+#             annotation_text="Healthy Threshold (85%)",
+#             annotation_position="bottom right"
+#         )
         
-        fig_accuracy.add_hline(
-            y=alert_threshold,
-            line_dash="dash", 
-            line_color="orange",
-            annotation_text=f"Alert Threshold ({alert_threshold}%)",
-            annotation_position="top right"
-        )
+#         fig_accuracy.add_hline(
+#             y=alert_threshold,
+#             line_dash="dash", 
+#             line_color="orange",
+#             annotation_text=f"Alert Threshold ({alert_threshold}%)",
+#             annotation_position="top right"
+#         )
         
-        fig_accuracy.update_layout(
-            title="Current Model Accuracy by Region",
-            xaxis_title="Region",
-            yaxis_title="Accuracy (%)",
-            showlegend=False,
-            height=400,
-            yaxis=dict(range=[0, 100])
-        )
+#         fig_accuracy.update_layout(
+#             title="Current Model Accuracy by Region",
+#             xaxis_title="Region",
+#             yaxis_title="Accuracy (%)",
+#             showlegend=False,
+#             height=400,
+#             yaxis=dict(range=[0, 100])
+#         )
         
-        st.plotly_chart(fig_accuracy, use_container_width=True)
+#         st.plotly_chart(fig_accuracy, use_container_width=True)
         
-        # ===== DETAILED PERFORMANCE METRICS =====
-        st.markdown("#### 📋 Detailed Performance Metrics")
+#         # ===== DETAILED PERFORMANCE METRICS =====
+#         st.markdown("#### 📋 Detailed Performance Metrics")
         
-        metrics_data = []
-        for region, metrics in accuracy_metrics.items():
-            trend_emoji = {'improving': '📈', 'stable': '➡️', 'declining': '📉'}.get(metrics['trend'], '➡️')
+#         metrics_data = []
+#         for region, metrics in accuracy_metrics.items():
+#             trend_emoji = {'improving': '📈', 'stable': '➡️', 'declining': '📉'}.get(metrics['trend'], '➡️')
             
-            # Determine status based on accuracy
-            if metrics['accuracy'] >= 85:
-                status = '✅ Excellent'
-                status_color = 'green'
-            elif metrics['accuracy'] >= alert_threshold:
-                status = '⚠️ Warning'  
-                status_color = 'orange'
-            else:
-                status = '❌ Critical'
-                status_color = 'red'
+#             # Determine status based on accuracy
+#             if metrics['accuracy'] >= 85:
+#                 status = '✅ Excellent'
+#                 status_color = 'green'
+#             elif metrics['accuracy'] >= alert_threshold:
+#                 status = '⚠️ Warning'  
+#                 status_color = 'orange'
+#             else:
+#                 status = '❌ Critical'
+#                 status_color = 'red'
             
-            metrics_data.append({
-                '🌍 Region': region,
-                '🎯 Accuracy (%)': f"{metrics['accuracy']:.1f}%",
-                '📊 MAE': f"{metrics['mae']:.2f}",
-                '📈 RMSE': f"{metrics['rmse']:.2f}",
-                '📊 Trend': f"{trend_emoji} {metrics['trend'].title()}",
-                '🔄 Health Status': status
-            })
+#             metrics_data.append({
+#                 '🌍 Region': region,
+#                 '🎯 Accuracy (%)': f"{metrics['accuracy']:.1f}%",
+#                 '📊 MAE': f"{metrics['mae']:.2f}",
+#                 '📈 RMSE': f"{metrics['rmse']:.2f}",
+#                 '📊 Trend': f"{trend_emoji} {metrics['trend'].title()}",
+#                 '🔄 Health Status': status
+#             })
         
-        metrics_df = pd.DataFrame(metrics_data)
+#         metrics_df = pd.DataFrame(metrics_data)
         
-        # Style the dataframe based on health status
-        def color_status(val):
-            if '✅' in val:
-                return 'background-color: #d4edda; color: #155724'
-            elif '⚠️' in val:
-                return 'background-color: #fff3cd; color: #856404'  
-            elif '❌' in val:
-                return 'background-color: #f8d7da; color: #721c24'
-            return ''
+#         # Style the dataframe based on health status
+#         def color_status(val):
+#             if '✅' in val:
+#                 return 'background-color: #d4edda; color: #155724'
+#             elif '⚠️' in val:
+#                 return 'background-color: #fff3cd; color: #856404'  
+#             elif '❌' in val:
+#                 return 'background-color: #f8d7da; color: #721c24'
+#             return ''
         
-        styled_metrics = metrics_df.style.applymap(color_status, subset=['🔄 Health Status'])
-        st.dataframe(styled_metrics, use_container_width=True, hide_index=True)
+#         styled_metrics = metrics_df.style.applymap(color_status, subset=['🔄 Health Status'])
+#         st.dataframe(styled_metrics, use_container_width=True, hide_index=True)
         
-        # ===== RETRAINING RECOMMENDATIONS =====
-        if retraining_status.get('retraining_required', False):
-            st.markdown("#### 🔄 Intelligent Retraining Recommendations")
+#         # ===== RETRAINING RECOMMENDATIONS =====
+#         if retraining_status.get('retraining_required', False):
+#             st.markdown("#### 🔄 Intelligent Retraining Recommendations")
             
-            for retrain_info in retraining_status['regions_needing_retrain']:
-                priority_colors = {
-                    'HIGH': '#e74c3c', 
-                    'MEDIUM': '#f39c12', 
-                    'LOW': '#27ae60'
-                }
-                priority_color = priority_colors.get(retrain_info['priority'], '#95a5a6')
+#             for retrain_info in retraining_status['regions_needing_retrain']:
+#                 priority_colors = {
+#                     'HIGH': '#e74c3c', 
+#                     'MEDIUM': '#f39c12', 
+#                     'LOW': '#27ae60'
+#                 }
+#                 priority_color = priority_colors.get(retrain_info['priority'], '#95a5a6')
                 
-                st.markdown(f"""
-                <div style="background: {priority_color}22; padding: 1rem; border-radius: 8px; border-left: 4px solid {priority_color}; margin-bottom: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <strong style="color: {priority_color};">🔄 {retrain_info['region']}</strong>
-                        <span style="background: {priority_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.8rem;">{retrain_info['priority']} PRIORITY</span>
-                    </div>
-                    <div style="margin-top: 0.5rem; font-size: 0.9rem;">{retrain_info['reason']}</div>
-                    <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #666;">
-                        💡 <strong>Action:</strong> Schedule model retraining for improved accuracy
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+#                 st.markdown(f"""
+#                 <div style="background: {priority_color}22; padding: 1rem; border-radius: 8px; border-left: 4px solid {priority_color}; margin-bottom: 1rem;">
+#                     <div style="display: flex; justify-content: space-between; align-items: center;">
+#                         <strong style="color: {priority_color};">🔄 {retrain_info['region']}</strong>
+#                         <span style="background: {priority_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.8rem;">{retrain_info['priority']} PRIORITY</span>
+#                     </div>
+#                     <div style="margin-top: 0.5rem; font-size: 0.9rem;">{retrain_info['reason']}</div>
+#                     <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #666;">
+#                         💡 <strong>Action:</strong> Schedule model retraining for improved accuracy
+#                     </div>
+#                 </div>
+#                 """, unsafe_allow_html=True)
             
-            # Manual retraining trigger
-            st.markdown("---")
-            manual_col1, manual_col2 = st.columns([1, 2])
+#             # Manual retraining trigger
+#             st.markdown("---")
+#             manual_col1, manual_col2 = st.columns([1, 2])
             
-            with manual_col1:
-                if st.button("🚀 Trigger Manual Retraining", type="primary", use_container_width=True):
-                    with st.spinner("Initiating intelligent model retraining..."):
-                        try:
-                            response = requests.post(f"{BASE_URL}/training/intelligent/trigger")
-                            if response.status_code == 200:
-                                result = response.json()
-                                st.success("✅ Intelligent retraining initiated successfully!")
-                                st.info(f"🤖 Training pipeline started: {result.get('status', 'Started')}")
-                                time.sleep(2)
-                                st.rerun()
-                            else:
-                                st.error("❌ Failed to trigger retraining")
-                        except Exception as e:
-                            st.error(f"❌ Connection error: {str(e)}")
+#             with manual_col1:
+#                 if st.button("🚀 Trigger Manual Retraining", type="primary", use_container_width=True):
+#                     with st.spinner("Initiating intelligent model retraining..."):
+#                         try:
+#                             response = requests.post(f"{BASE_URL}/training/intelligent/trigger")
+#                             if response.status_code == 200:
+#                                 result = response.json()
+#                                 st.success("✅ Intelligent retraining initiated successfully!")
+#                                 st.info(f"🤖 Training pipeline started: {result.get('status', 'Started')}")
+#                                 time.sleep(2)
+#                                 st.rerun()
+#                             else:
+#                                 st.error("❌ Failed to trigger retraining")
+#                         except Exception as e:
+#                             st.error(f"❌ Connection error: {str(e)}")
             
-            with manual_col2:
-                st.info("🤖 **Intelligent Retraining**: The system will automatically test ARIMA, XGBoost, and LSTM models for each flagged region and deploy the best performing model.")
+#             with manual_col2:
+#                 st.info("🤖 **Intelligent Retraining**: The system will automatically test ARIMA, XGBoost, and LSTM models for each flagged region and deploy the best performing model.")
         
-        else:
-            st.success("✅ **All models are performing well!** No retraining required at this time.")
+#         else:
+#             st.success("✅ **All models are performing well!** No retraining required at this time.")
             
-            # Show last successful training info
-            st.markdown("#### 🎯 Model Performance Summary")
+#             # Show last successful training info
+#             st.markdown("#### 🎯 Model Performance Summary")
             
-            perf_col1, perf_col2, perf_col3 = st.columns(3)
+#             perf_col1, perf_col2, perf_col3 = st.columns(3)
             
-            with perf_col1:
-                excellent_count = sum(1 for metrics in accuracy_metrics.values() if metrics['accuracy'] >= 85)
-                st.metric("🌟 Excellent Models", excellent_count, help="Models with >85% accuracy")
+#             with perf_col1:
+#                 excellent_count = sum(1 for metrics in accuracy_metrics.values() if metrics['accuracy'] >= 85)
+#                 st.metric("🌟 Excellent Models", excellent_count, help="Models with >85% accuracy")
             
-            with perf_col2:
-                stable_count = sum(1 for metrics in accuracy_metrics.values() if metrics['trend'] == 'stable')
-                st.metric("📊 Stable Models", stable_count, help="Models with stable performance")
+#             with perf_col2:
+#                 stable_count = sum(1 for metrics in accuracy_metrics.values() if metrics['trend'] == 'stable')
+#                 st.metric("📊 Stable Models", stable_count, help="Models with stable performance")
             
-            with perf_col3:
-                improving_count = sum(1 for metrics in accuracy_metrics.values() if metrics['trend'] == 'improving')
-                st.metric("📈 Improving Models", improving_count, help="Models with improving accuracy")
+#             with perf_col3:
+#                 improving_count = sum(1 for metrics in accuracy_metrics.values() if metrics['trend'] == 'improving')
+#                 st.metric("📈 Improving Models", improving_count, help="Models with improving accuracy")
         
-    else:
-        st.warning("⚠️ Model monitoring data not available. Please ensure the backend API is running with Milestone 4 enhancements.")
+#     else:
+#         st.warning("⚠️ Model monitoring data not available. Please ensure the backend API is running with Milestone 4 enhancements.")
         
-        # Show demo monitoring interface
-        st.info("💡 **Demo Mode**: Model monitoring requires the enhanced backend API with `/api/monitoring/accuracy` endpoint.")
+#         # Show demo monitoring interface
+#         st.info("💡 **Demo Mode**: Model monitoring requires the enhanced backend API with `/api/monitoring/accuracy` endpoint.")
         
-        # Demo monitoring dashboard
-        st.markdown("#### 🏥 Demo: Model Health Dashboard")
+#         # Demo monitoring dashboard
+#         st.markdown("#### 🏥 Demo: Model Health Dashboard")
         
-        demo_health_data = []
-        demo_regions = ['East US', 'West US', 'North Europe', 'Southeast Asia']
+#         demo_health_data = []
+#         demo_regions = ['East US', 'West US', 'North Europe', 'Southeast Asia']
         
-        for region in demo_regions:
-            accuracy = np.random.uniform(75, 95)
-            trend = np.random.choice(['improving', 'stable', 'declining'], p=[0.3, 0.5, 0.2])
+#         for region in demo_regions:
+#             accuracy = np.random.uniform(75, 95)
+#             trend = np.random.choice(['improving', 'stable', 'declining'], p=[0.3, 0.5, 0.2])
             
-            demo_health_data.append({
-                'Region': region,
-                'Accuracy (%)': f"{accuracy:.1f}%",
-                'MAE': f"{np.random.uniform(10, 20):.2f}",
-                'RMSE': f"{np.random.uniform(12, 25):.2f}",
-                'Trend': trend.title(),
-                'Status': 'Healthy' if accuracy >= 85 else 'Warning' if accuracy >= 75 else 'Critical'
-            })
+#             demo_health_data.append({
+#                 'Region': region,
+#                 'Accuracy (%)': f"{accuracy:.1f}%",
+#                 'MAE': f"{np.random.uniform(10, 20):.2f}",
+#                 'RMSE': f"{np.random.uniform(12, 25):.2f}",
+#                 'Trend': trend.title(),
+#                 'Status': 'Healthy' if accuracy >= 85 else 'Warning' if accuracy >= 75 else 'Critical'
+#             })
         
-        demo_health_df = pd.DataFrame(demo_health_data)
-        st.dataframe(demo_health_df, use_container_width=True, hide_index=True)
+#         demo_health_df = pd.DataFrame(demo_health_data)
+#         st.dataframe(demo_health_df, use_container_width=True, hide_index=True)
     
-    # ===== AUTOMATED REPORTING SECTION =====
-    st.markdown("---")
-    st.markdown("### 📊 Automated Model Reporting System")
+#     # ===== AUTOMATED REPORTING SECTION =====
+#     st.markdown("---")
+#     st.markdown("### 📊 Automated Model Reporting System")
     
-    report_tab1, report_tab2, report_tab3 = st.tabs(["📈 Performance Reports", "📋 Health Reports", "🔄 Training Reports"])
+#     report_tab1, report_tab2, report_tab3 = st.tabs(["📈 Performance Reports", "📋 Health Reports", "🔄 Training Reports"])
     
-    with report_tab1:
-        st.markdown("#### 📈 Model Performance Reports")
+#     with report_tab1:
+#         st.markdown("#### 📈 Model Performance Reports")
         
-        perf_col1, perf_col2 = st.columns([2, 1])
+#         perf_col1, perf_col2 = st.columns([2, 1])
         
-        with perf_col1:
-            st.markdown("**📊 Available Performance Reports:**")
+#         with perf_col1:
+#             st.markdown("**📊 Available Performance Reports:**")
             
-            performance_reports = [
-                {
-                    "name": "Daily Accuracy Summary",
-                    "description": "Daily model accuracy trends and alerts",
-                    "format": "CSV",
-                    "icon": "📊"
-                },
-                {
-                    "name": "Weekly Performance Analysis",
-                    "description": "Comprehensive weekly model analysis",
-                    "format": "Excel",
-                    "icon": "📈"
-                },
-                {
-                    "name": "Monthly Health Assessment",
-                    "description": "Monthly model health and trend analysis",
-                    "format": "PDF",
-                    "icon": "📋"
-                },
-                {
-                    "name": "Accuracy vs Forecast Comparison",
-                    "description": "Detailed accuracy vs actual predictions",
-                    "format": "CSV",
-                    "icon": "🎯"
-                }
-            ]
+#             performance_reports = [
+#                 {
+#                     "name": "Daily Accuracy Summary",
+#                     "description": "Daily model accuracy trends and alerts",
+#                     "format": "CSV",
+#                     "icon": "📊"
+#                 },
+#                 {
+#                     "name": "Weekly Performance Analysis",
+#                     "description": "Comprehensive weekly model analysis",
+#                     "format": "Excel",
+#                     "icon": "📈"
+#                 },
+#                 {
+#                     "name": "Monthly Health Assessment",
+#                     "description": "Monthly model health and trend analysis",
+#                     "format": "PDF",
+#                     "icon": "📋"
+#                 },
+#                 {
+#                     "name": "Accuracy vs Forecast Comparison",
+#                     "description": "Detailed accuracy vs actual predictions",
+#                     "format": "CSV",
+#                     "icon": "🎯"
+#                 }
+#             ]
             
-            for i, report in enumerate(performance_reports):
-                if st.button(f"{report['icon']} Generate {report['name']} ({report['format']})", key=f"perf_report_{i}"):
-                    with st.spinner(f"Generating {report['name']}..."):
-                        # Simulate report generation
-                        progress = st.progress(0)
-                        for j in range(100):
-                            time.sleep(0.01)
-                            progress.progress(j + 1)
+#             for i, report in enumerate(performance_reports):
+#                 if st.button(f"{report['icon']} Generate {report['name']} ({report['format']})", key=f"perf_report_{i}"):
+#                     with st.spinner(f"Generating {report['name']}..."):
+#                         # Simulate report generation
+#                         progress = st.progress(0)
+#                         for j in range(100):
+#                             time.sleep(0.01)
+#                             progress.progress(j + 1)
                         
-                        st.success(f"✅ {report['name']} generated successfully!")
-                        st.info(f"📄 **Description:** {report['description']}")
+#                         st.success(f"✅ {report['name']} generated successfully!")
+#                         st.info(f"📄 **Description:** {report['description']}")
                         
-                        # Show download button for demo
-                        if report['format'] == 'CSV':
-                            sample_data = "Region,Accuracy,MAE,RMSE,Status\nEast US,87.3,12.5,15.2,Healthy\n"
-                            st.download_button(
-                                label=f"⬇️ Download {report['format']}",
-                                data=sample_data,
-                                file_name=f"{report['name'].lower().replace(' ', '_')}.csv",
-                                mime="text/csv"
-                            )
+#                         # Show download button for demo
+#                         if report['format'] == 'CSV':
+#                             sample_data = "Region,Accuracy,MAE,RMSE,Status\nEast US,87.3,12.5,15.2,Healthy\n"
+#                             st.download_button(
+#                                 label=f"⬇️ Download {report['format']}",
+#                                 data=sample_data,
+#                                 file_name=f"{report['name'].lower().replace(' ', '_')}.csv",
+#                                 mime="text/csv"
+#                             )
         
-        with perf_col2:
-            st.markdown("**📅 Report Schedule:**")
-            st.info("""
-            **🤖 Automated Schedule:**
-            - 🕐 **Daily:** 6:00 AM UTC
-            - 📅 **Weekly:** Monday 8:00 AM UTC  
-            - 🗓️ **Monthly:** 1st of month 9:00 AM UTC
+#         with perf_col2:
+#             st.markdown("**📅 Report Schedule:**")
+#             st.info("""
+#             **🤖 Automated Schedule:**
+#             - 🕐 **Daily:** 6:00 AM UTC
+#             - 📅 **Weekly:** Monday 8:00 AM UTC  
+#             - 🗓️ **Monthly:** 1st of month 9:00 AM UTC
             
-            **📊 Last Generated:**
-            - Daily: 2 hours ago ✅
-            - Weekly: 3 days ago ✅
-            - Monthly: 12 days ago ✅
+#             **📊 Last Generated:**
+#             - Daily: 2 hours ago ✅
+#             - Weekly: 3 days ago ✅
+#             - Monthly: 12 days ago ✅
             
-            **⚡ Status:** All automations active
-            """)
+#             **⚡ Status:** All automations active
+#             """)
     
-    with report_tab2:
-        st.markdown("#### 📋 Model Health Reports")
+#     with report_tab2:
+#         st.markdown("#### 📋 Model Health Reports")
         
-        health_col1, health_col2 = st.columns(2)
+#         health_col1, health_col2 = st.columns(2)
         
-        with health_col1:
-            health_report_type = st.selectbox(
-                "📋 Select Health Report Type", 
-                [
-                    "Overall Health Summary",
-                    "Risk Assessment Report", 
-                    "Retraining Recommendations",
-                    "Performance Degradation Analysis"
-                ]
-            )
+#         with health_col1:
+#             health_report_type = st.selectbox(
+#                 "📋 Select Health Report Type", 
+#                 [
+#                     "Overall Health Summary",
+#                     "Risk Assessment Report", 
+#                     "Retraining Recommendations",
+#                     "Performance Degradation Analysis"
+#                 ]
+#             )
         
-        with health_col2:
-            health_time_range = st.selectbox(
-                "📅 Select Time Range",
-                ["Last 7 days", "Last 30 days", "Last 90 days", "Custom range"]
-            )
+#         with health_col2:
+#             health_time_range = st.selectbox(
+#                 "📅 Select Time Range",
+#                 ["Last 7 days", "Last 30 days", "Last 90 days", "Custom range"]
+#             )
         
-        if st.button("📊 Generate Health Report", use_container_width=True):
-            with st.spinner("Generating comprehensive health report..."):
-                # Simulate report generation
-                progress_bar = st.progress(0)
-                for i in range(100):
-                    time.sleep(0.02)
-                    progress_bar.progress(i + 1)
+#         if st.button("📊 Generate Health Report", use_container_width=True):
+#             with st.spinner("Generating comprehensive health report..."):
+#                 # Simulate report generation
+#                 progress_bar = st.progress(0)
+#                 for i in range(100):
+#                     time.sleep(0.02)
+#                     progress_bar.progress(i + 1)
                 
-                st.success("✅ Health report generated successfully!")
+#                 st.success("✅ Health report generated successfully!")
                 
-                # Show sample health report preview
-                st.markdown("**📊 Report Preview:**")
+#                 # Show sample health report preview
+#                 st.markdown("**📊 Report Preview:**")
                 
-                if monitoring_data:
-                    # Use real data if available
-                    health_preview_data = {
-                        'Metric': ['Overall Health Status', 'Healthy Models', 'Models Needing Attention', 'Average Accuracy', 'Retraining Required'],
-                        'Value': [
-                            model_health.get('overall_status', 'Unknown'),
-                            f"{model_health.get('healthy_models', 0)}/{model_health.get('total_models', 0)}",
-                            model_health.get('warning_models', 0) + model_health.get('critical_models', 0),
-                            f"{model_health.get('average_accuracy', 0):.1f}%",
-                            'Yes' if retraining_status.get('retraining_required', False) else 'No'
-                        ],
-                        'Status': ['🟢 Good', '✅ Healthy', '⚠️ Monitor', '📈 Good', '🔄 Active']
-                    }
-                else:
-                    # Use demo data
-                    health_preview_data = {
-                        'Metric': ['Overall Health Status', 'Healthy Models', 'Models Needing Attention', 'Average Accuracy', 'Retraining Required'],
-                        'Value': ['HEALTHY', '3/4', '1', '84.2%', 'No'],
-                        'Status': ['🟢 Good', '✅ Healthy', '⚠️ Monitor', '📈 Good', '✅ None']
-                    }
+#                 if monitoring_data:
+#                     # Use real data if available
+#                     health_preview_data = {
+#                         'Metric': ['Overall Health Status', 'Healthy Models', 'Models Needing Attention', 'Average Accuracy', 'Retraining Required'],
+#                         'Value': [
+#                             model_health.get('overall_status', 'Unknown'),
+#                             f"{model_health.get('healthy_models', 0)}/{model_health.get('total_models', 0)}",
+#                             model_health.get('warning_models', 0) + model_health.get('critical_models', 0),
+#                             f"{model_health.get('average_accuracy', 0):.1f}%",
+#                             'Yes' if retraining_status.get('retraining_required', False) else 'No'
+#                         ],
+#                         'Status': ['🟢 Good', '✅ Healthy', '⚠️ Monitor', '📈 Good', '🔄 Active']
+#                     }
+#                 else:
+#                     # Use demo data
+#                     health_preview_data = {
+#                         'Metric': ['Overall Health Status', 'Healthy Models', 'Models Needing Attention', 'Average Accuracy', 'Retraining Required'],
+#                         'Value': ['HEALTHY', '3/4', '1', '84.2%', 'No'],
+#                         'Status': ['🟢 Good', '✅ Healthy', '⚠️ Monitor', '📈 Good', '✅ None']
+#                     }
                 
-                st.dataframe(pd.DataFrame(health_preview_data), use_container_width=True, hide_index=True)
+#                 st.dataframe(pd.DataFrame(health_preview_data), use_container_width=True, hide_index=True)
     
-    with report_tab3:
-        st.markdown("#### 🔄 Model Training Reports")
+#     with report_tab3:
+#         st.markdown("#### 🔄 Model Training Reports")
         
-        # Get training history if available
-        training_history = fetch_api('training/intelligent/history')
+#         # Get training history if available
+#         training_history = fetch_api('training/intelligent/history')
         
-        if training_history:
-            st.markdown("**📚 Recent Training Sessions:**")
+#         if training_history:
+#             st.markdown("**📚 Recent Training Sessions:**")
             
-            training_sessions = [
-                {"name": "Latest Intelligent Training", "date": "2025-10-05", "status": "✅ Completed", "models_updated": 3, "duration": "45 min"},
-                {"name": "Weekly Auto-Training", "date": "2025-10-01", "status": "✅ Completed", "models_updated": 8, "duration": "78 min"},
-                {"name": "Performance Optimization", "date": "2025-09-30", "status": "✅ Completed", "models_updated": 6, "duration": "52 min"}
-            ]
-        else:
-            st.markdown("**📚 Training Sessions (Demo):**")
+#             training_sessions = [
+#                 {"name": "Latest Intelligent Training", "date": "2025-10-05", "status": "✅ Completed", "models_updated": 3, "duration": "45 min"},
+#                 {"name": "Weekly Auto-Training", "date": "2025-10-01", "status": "✅ Completed", "models_updated": 8, "duration": "78 min"},
+#                 {"name": "Performance Optimization", "date": "2025-09-30", "status": "✅ Completed", "models_updated": 6, "duration": "52 min"}
+#             ]
+#         else:
+#             st.markdown("**📚 Training Sessions (Demo):**")
             
-            training_sessions = [
-                {"name": "Manual Training Trigger", "date": "2025-10-05", "status": "✅ Completed", "models_updated": 4, "duration": "62 min"},
-                {"name": "Scheduled Auto-Training", "date": "2025-10-02", "status": "✅ Completed", "models_updated": 8, "duration": "84 min"},
-                {"name": "Performance Retraining", "date": "2025-09-28", "status": "✅ Completed", "models_updated": 5, "duration": "71 min"}
-            ]
+#             training_sessions = [
+#                 {"name": "Manual Training Trigger", "date": "2025-10-05", "status": "✅ Completed", "models_updated": 4, "duration": "62 min"},
+#                 {"name": "Scheduled Auto-Training", "date": "2025-10-02", "status": "✅ Completed", "models_updated": 8, "duration": "84 min"},
+#                 {"name": "Performance Retraining", "date": "2025-09-28", "status": "✅ Completed", "models_updated": 5, "duration": "71 min"}
+#             ]
         
-        for session in training_sessions:
-            train_col1, train_col2, train_col3, train_col4, train_col5 = st.columns([3, 2, 2, 2, 1])
+#         for session in training_sessions:
+#             train_col1, train_col2, train_col3, train_col4, train_col5 = st.columns([3, 2, 2, 2, 1])
             
-            with train_col1:
-                st.write(f"🤖 {session['name']}")
-            with train_col2:
-                st.write(f"📅 {session['date']}")
-            with train_col3:
-                st.write(session['status'])
-            with train_col4:
-                st.write(f"🔄 {session['models_updated']} models updated")
-            with train_col5:
-                if st.button("📄", key=f"download_training_{session['name']}"):
-                    st.info("📊 Training report download initiated!")
+#             with train_col1:
+#                 st.write(f"🤖 {session['name']}")
+#             with train_col2:
+#                 st.write(f"📅 {session['date']}")
+#             with train_col3:
+#                 st.write(session['status'])
+#             with train_col4:
+#                 st.write(f"🔄 {session['models_updated']} models updated")
+#             with train_col5:
+#                 if st.button("📄", key=f"download_training_{session['name']}"):
+#                     st.info("📊 Training report download initiated!")
     
-    # ===== EXPORT AND ANALYTICS SECTION =====
-    st.markdown("---")
-    st.markdown("### 💾 Advanced Analytics & Export Center")
+#     # ===== EXPORT AND ANALYTICS SECTION =====
+#     st.markdown("---")
+#     st.markdown("### 💾 Advanced Analytics & Export Center")
     
-    export_col1, export_col2, export_col3, export_col4 = st.columns(4)
+#     export_col1, export_col2, export_col3, export_col4 = st.columns(4)
     
-    with export_col1:
-        if st.button("📊 Export All Metrics", use_container_width=True):
-            if monitoring_data:
-                # Generate comprehensive metrics export
-                all_metrics_data = []
+#     with export_col1:
+#         if st.button("📊 Export All Metrics", use_container_width=True):
+#             if monitoring_data:
+#                 # Generate comprehensive metrics export
+#                 all_metrics_data = []
                 
-                for region, metrics in accuracy_metrics.items():
-                    all_metrics_data.append({
-                        'Region': region,
-                        'Accuracy_%': metrics['accuracy'],
-                        'MAE': metrics['mae'],
-                        'RMSE': metrics['rmse'],
-                        'Trend': metrics['trend'],
-                        'Health_Status': 'Healthy' if metrics['accuracy'] >= 85 else 'Warning' if metrics['accuracy'] >= alert_threshold else 'Critical',
-                        'Last_Updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    })
+#                 for region, metrics in accuracy_metrics.items():
+#                     all_metrics_data.append({
+#                         'Region': region,
+#                         'Accuracy_%': metrics['accuracy'],
+#                         'MAE': metrics['mae'],
+#                         'RMSE': metrics['rmse'],
+#                         'Trend': metrics['trend'],
+#                         'Health_Status': 'Healthy' if metrics['accuracy'] >= 85 else 'Warning' if metrics['accuracy'] >= alert_threshold else 'Critical',
+#                         'Last_Updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+#                     })
                 
-                metrics_df_export = pd.DataFrame(all_metrics_data)
-                csv_data = metrics_df_export.to_csv(index=False)
+#                 metrics_df_export = pd.DataFrame(all_metrics_data)
+#                 csv_data = metrics_df_export.to_csv(index=False)
                 
-                st.download_button(
-                    label="⬇️ Download Comprehensive Metrics (CSV)",
-                    data=csv_data,
-                    file_name=f"model_metrics_comprehensive_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.info("📊 Metrics export requires monitoring data")
+#                 st.download_button(
+#                     label="⬇️ Download Comprehensive Metrics (CSV)",
+#                     data=csv_data,
+#                     file_name=f"model_metrics_comprehensive_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+#                     mime="text/csv"
+#                 )
+#             else:
+#                 st.info("📊 Metrics export requires monitoring data")
     
-    with export_col2:
-        if st.button("📈 Export Performance Charts", use_container_width=True):
-            st.info("📊 Chart export functionality ready! Charts can be downloaded as PNG/SVG from the chart menu.")
+#     with export_col2:
+#         if st.button("📈 Export Performance Charts", use_container_width=True):
+#             st.info("📊 Chart export functionality ready! Charts can be downloaded as PNG/SVG from the chart menu.")
     
-    with export_col3:
-        if st.button("🔄 Export Training History", use_container_width=True):
-            if training_history:
-                st.success("📋 Training history export ready!")
-                st.info("🔄 Training history includes performance evolution and model comparisons")
-            else:
-                st.info("📋 Training history export requires training data")
+#     with export_col3:
+#         if st.button("🔄 Export Training History", use_container_width=True):
+#             if training_history:
+#                 st.success("📋 Training history export ready!")
+#                 st.info("🔄 Training history includes performance evolution and model comparisons")
+#             else:
+#                 st.info("📋 Training history export requires training data")
     
-    with export_col4:
-        if st.button("📋 Generate Full Report", use_container_width=True):
-            with st.spinner("Generating comprehensive monitoring report..."):
-                time.sleep(2)
-                st.success("📄 Full monitoring report generated!")
-                st.info("🎯 Includes: Model health, performance trends, recommendations, and training history")
+#     with export_col4:
+#         if st.button("📋 Generate Full Report", use_container_width=True):
+#             with st.spinner("Generating comprehensive monitoring report..."):
+#                 time.sleep(2)
+#                 st.success("📄 Full monitoring report generated!")
+#                 st.info("🎯 Includes: Model health, performance trends, recommendations, and training history")
 
 # END OF TAB 9 & 10 CODE
 
