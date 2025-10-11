@@ -25,37 +25,37 @@ This project transforms Azure capacity planning from reactive to predictive usin
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 STREAMLIT FRONTEND                          │
-│               (9 Intelligent Tabs)                         │
-│  📊 Overview  📈 Trends  🌍 Regional  ⚡ Resources         │
-│  🔗 Correlations  👥 Engagement  🤖 Forecasting           │
-│  🏗️ Model Monitoring  🏗️ Capacity Planning               │
+│               (9 Intelligent Tabs)                          │
+│  📊 Overview  📈 Trends  🌍 Regional  ⚡ Resources        │
+│  🔗 Correlations  👥 Engagement  🤖 Forecasting            
+│  🏗️ Model Monitoring  🏗️ Capacity Planning                 │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    FLASK REST API                           │
-│                  (47 Optimized Endpoints)                  │
-│  • Data Analytics     • Regional Analysis                  │
-│  • ML Forecasting     • Capacity Planning                  │
-│  • System Monitoring  • Automated Reporting                │
+│                  (47 Optimized Endpoints)                   │
+│  • Data Analytics     • Regional Analysis                   │
+│  • ML Forecasting     • Capacity Planning                   │
+│  • System Monitoring  • Automated Reporting                 │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              INTELLIGENT ML PIPELINE                        │
 │             (Automated Model Training)                      │
-│  • ARIMA Models       • LSTM Networks                      │
-│  • XGBoost Algorithms • Auto-Model Selection               │
+│  • ARIMA Models       • LSTM Networks                       │
+│  • XGBoost Algorithms • Auto-Model Selection                │
 │  • Performance Monitoring • Continuous Learning             │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   DATA LAYER                                │
-│     (Enterprise Data Management)                           │
-│  • SQLite3 Database   • 2+ Years Historical Data           │
-│  • Real-time Ingestion • Model Artifacts Storage           │
-│  • Performance Tracking • Audit Trail Logging              │
+│     (Enterprise Data Management)                            │
+│  • SQLite3 Database   • 3 Months Historical Data            │
+│  • Real-time Ingestion • Model Artifacts Storage            │
+│  • Performance Tracking • Audit Trail Logging               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -95,20 +95,26 @@ This project transforms Azure capacity planning from reactive to predictive usin
 Integrated_Forecasting_-Predict_Azure_consumer_demand/
 ├── 📊 FRONTEND/
 │   └── dashboard_app.py              # Streamlit Dashboard (266KB)
-├── 🔧 BACKEND/
-│   ├── optimised_backend_app.py      # Flask REST API (150KB)
+├── 🔧 BACKEND AUTOMATED REPORTS/
+│   ├── intelligent_training_report    #report details of training
 │   ├── model_training_pipeline.py   # ML Training Pipeline (42KB)
-│   └── start_pipeline.py            # System Launcher (1KB)
+│            
 ├── 📦 DATA/
 │   └── cleaned_merged.csv            # Historical Dataset (59KB)
 ├── 🛠️ TOOLS/
 │   ├── requirements.txt              # Python Dependencies
 │   ├── postman_collection.json      # API Testing Suite
 │   └── presentation_materials/      # Demo & Documentation
-└── 📚 DOCS/
-    ├── README.md                     # Project Documentation
-    ├── API_DOCUMENTATION.md          # Complete API Reference
-    └── DEPLOYMENT_GUIDE.md           # Production Setup Guide
+├── 📚 DOCS/
+|   ├── README.md                     # Project Documentation
+|   ├── API_DOCUMENTATION.md          # Complete API Reference
+|   └── DEPLOYMENT_GUIDE.md           # Production Setup Guide
+|
+├─── 📊 FRONTEND -dashboard_app.py              # Streamlit Dashboard (266KB)
+|─── 🔧 BACKEND -optimised_backend_app.py      # Flask REST API (150KB)
+|─── 🔧 BACKEND -model_training_pipeline.py   # ML Training Pipeline (42KB)
+|─── 🔧 BACKEND -start_pipeline.py            # System Launcher (1KB)
+
 ```
 
 ---
