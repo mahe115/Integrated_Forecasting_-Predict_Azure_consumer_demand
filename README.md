@@ -365,24 +365,23 @@ End-to-end functionality validation:
 - **Security Testing**: API authentication & authorization
 
 ---
-
 ## 📚 **Documentation & Resources**
 
 ### **📖 Complete Guide Collection**
-- **[API Documentation](API_DOCUMENTATION.md)**: Complete reference for all 47 endpoints
-- **[Deployment Guide](DEPLOYMENT_GUIDE.md)**: Production setup instructions
-- **[ML Model Guide](ML_MODELS.md)**: Deep dive into AI algorithms
-- **[Business Case](BUSINESS_CASE.md)**: ROI analysis and value proposition
+- **[API Documentation](AZURE_BACKEND_TEAM-B/reports/API_DOCUMENTATION.md)**: Complete reference for all 47 endpoints  
+- **[Deployment Guide](AZURE_BACKEND_TEAM-B/reports/DEPLOYMENT_GUIDE.md)**: Production setup instructions  
+- **[ML Model Guide](AZURE_BACKEND_TEAM-B/reports/ML_MODELS.md)**: Deep dive into AI algorithms  
+- **[Business Case](AZURE_BACKEND_TEAM-B/reports/BUSINESS_CASE.md)**: ROI analysis and value proposition  
 
 ### **🎬 Demonstration Materials**
-- **[Executive Presentation](presentation/EXECUTIVE_DEMO.md)**: 30-minute demo script
-- **[Technical Deep Dive](presentation/TECHNICAL_DEMO.md)**: Architecture walkthrough
-- **[Video Walkthrough](presentation/DEMO_VIDEO.mp4)**: Complete system demonstration
+- **[Executive Presentation](AZURE_BACKEND_TEAM-B/reports/presentation/EXECUTIVE_DEMO.md)**: 30-minute demo script  
+- **[Technical Deep Dive](AZURE_BACKEND_TEAM-B/reports/presentation/TECHNICAL_DEMO.md)**: Architecture walkthrough  
+- **[Video Walkthrough](AZURE_BACKEND_TEAM-B/reports/presentation/DEMO_VIDEO.mp4)**: Complete system demonstration  
 
 ### **🛠️ Developer Resources**
-- **[API Reference](docs/API_REFERENCE.md)**: Comprehensive endpoint documentation
-- **[Code Examples](examples/)**: Usage examples and integration patterns
-- **[Testing Guide](docs/TESTING.md)**: Quality assurance procedures
+- **[API Reference](AZURE_BACKEND_TEAM-B/reports/docs/API_REFERENCE.md)**: Comprehensive endpoint documentation  
+- **[Code Examples](AZURE_BACKEND_TEAM-B/reports/examples/)**: Usage examples and integration patterns  
+- **[Testing Guide](AZURE_BACKEND_TEAM-B/reports/docs/TESTING.md)**: Quality assurance procedures  
 
 ---
 
