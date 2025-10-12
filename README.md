@@ -27,7 +27,7 @@ This project transforms Azure capacity planning from reactive to predictive usin
 │                 STREAMLIT FRONTEND                          │
 │               (9 Intelligent Tabs)                          │
 │  📊 Overview  📈 Trends  🌍 Regional  ⚡ Resources        │
-│  🔗 Correlations  👥 Engagement  🤖 Forecasting            
+│  🔗 Correlations  👥 Engagement  🤖 Forecasting            |
 │  🏗️ Model Monitoring  🏗️ Capacity Planning                 │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -211,7 +211,7 @@ python model_training_pipeline.py
 - **⚡ API Response Time**: < 200ms average across all endpoints
 - **🤖 Forecast Generation**: < 5 seconds for 30-day predictions  
 - **🔄 Cache Hit Rate**: 95% efficiency with 4-tier caching system
-- **📊 Data Processing**: 1,500+ data points analyzed in real-time
+- **📊 Data Processing**: 1,080+ data points analyzed in real-time
 - **🎯 AI Accuracy**: 84.7% average across all forecasting models
 
 ### **Technology Stack**
