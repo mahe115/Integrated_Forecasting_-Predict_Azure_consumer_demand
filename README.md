@@ -376,7 +376,7 @@ End-to-end functionality validation:
 ### **🎬 Demonstration Materials**
 - **[Executive Presentation](reports/presentation/EXECUTIVE_DEMO.md)**: 30-minute demo script  
 - **[Technical Deep Dive](reports/presentation/TECHNICAL_DEMO.md)**: Architecture walkthrough  
-- **[Video Walkthrough](reports/presentation/DEMO_VIDEO.mp4)**: Complete system demonstration  
+- **[Video Walkthrough](https://youtu.be/BZ43ii8L2Sw)**: Complete system demonstration  
 
 ### **🛠️ Developer Resources**
 - **[API Reference](reports/docs/API_REFERENCE.md)**: Comprehensive endpoint documentation  
