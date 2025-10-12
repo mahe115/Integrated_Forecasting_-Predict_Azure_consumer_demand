@@ -12,6 +12,9 @@
 
 This project transforms Azure capacity planning from reactive to predictive using **AI-powered analytics**. Our comprehensive platform combines real-time business intelligence with advanced machine learning forecasting to deliver actionable insights for enterprise resource management.
 
+### [Video Walkthrough](https://youtu.be/BZ43ii8L2Sw)**: Complete system demonstration  
+
+
 ### **🎯 Key Achievements:**
 - **84.7% Prediction Accuracy** across all AI models
 - **$3M+ Annual ROI** through optimized resource allocation
