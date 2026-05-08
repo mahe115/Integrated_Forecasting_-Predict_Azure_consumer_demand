@@ -445,20 +445,6 @@ python -m cProfile optimised_backend_app.py
 
 ---
 
-## 📞 **Support & Contact**
-
-### **Technical Support**
-- **📧 Email**: support@azureforecasting.com
-- **💬 Issues**: [GitHub Issues](https://github.com/mahe115/Integrated_Forecasting_-Predict_Azure_consumer_demand/issues)
-- **📖 Documentation**: [Wiki](https://github.com/mahe115/Integrated_Forecasting_-Predict_Azure_consumer_demand/wiki)
-
-### **Business Inquiries**
-- **💼 Enterprise Sales**: enterprise@azureforecasting.com
-- **📊 Consulting**: consulting@azureforecasting.com
-- **🤝 Partnerships**: partners@azureforecasting.com
-
----
-
 ## 📄 **License & Legal**
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
